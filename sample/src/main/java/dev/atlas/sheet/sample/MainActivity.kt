@@ -1,0 +1,176 @@
+package dev.atlas.sheet.sample
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import dev.atlas.sheet.*
+import kotlinx.coroutines.launch
+
+private val Ink = Color(0xFF172033)
+private val Accent = Color(0xFF6554E8)
+private val Paper = Color(0xFFF5F6FB)
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            MaterialTheme(colorScheme = lightColorScheme(primary = Accent, background = Paper, surface = Color.White, onSurface = Ink)) {
+                Gallery()
+            }
+        }
+    }
+}
+
+enum class Demo(val label: String, val subtitle: String) {
+    Detents("Detents", "Peek, medium, expanded • scroll handoff"),
+    Chat("Chat", "Reverse lazy list • composer above keyboard"),
+    Fit("Content fit", "Intrinsic size • live content changes"),
+    Form("Sticky actions", "Long form • keyboard resize • pinned CTA"),
+    Persistent("Persistent", "Inline sheet • interactive background"),
+    Locked("Protected flow", "Disable user dismissal • explicit close"),
+}
+
+@Composable
+private fun Gallery() {
+    var selected by rememberSaveable { mutableStateOf<Demo?>(null) }
+    Box(Modifier.fillMaxSize().background(Paper)) {
+        LazyColumn(Modifier.fillMaxSize().safeDrawingPadding(), contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            item {
+                Text("ATLAS / COMPOSE", color = Accent, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(14.dp))
+                Text("A sheet for\nevery surface.", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = Ink)
+                Spacer(Modifier.height(12.dp))
+                Text("Named detents. Sticky chrome.\nContent that stays in your control.", color = Color(0xFF68728A))
+                Spacer(Modifier.height(14.dp))
+            }
+            items(Demo.entries) { demo ->
+                Card(Modifier.fillMaxWidth().testTag("open-${demo.name}").clickable { selected = demo }, colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                    Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(demo.label, fontWeight = FontWeight.SemiBold, color = Ink)
+                            Spacer(Modifier.height(6.dp))
+                            Text(demo.subtitle, style = MaterialTheme.typography.bodySmall, color = Color(0xFF68728A))
+                        }
+                        Text("↗", color = Accent, style = MaterialTheme.typography.titleLarge)
+                    }
+                }
+            }
+            item { Text("0.1.0 • Android 24+ • Foundation powered", color = Color(0xFF68728A), style = MaterialTheme.typography.labelSmall) }
+        }
+        selected?.let { demo -> key(demo) { DemoSheet(demo) { selected = null } } }
+    }
+}
+
+@Composable
+private fun DemoSheet(demo: Demo, close: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val initial = if (demo == Demo.Fit) "content" else if (demo == Demo.Persistent) "peek" else "medium"
+    val state = rememberSheetState(initialDetent = initial)
+    val detents = remember(demo) {
+        if (demo == Demo.Fit) listOf(SheetDetent.content(), SheetDetent.expanded())
+        else listOf(SheetDetent.fixed("peek", 260.dp), SheetDetent.fraction("medium", 0.6f), SheetDetent.expanded())
+    }
+    val behavior = remember(demo) {
+        SheetBehavior(
+            imePolicy = if (demo == Demo.Chat) SheetImePolicy.Expand else SheetImePolicy.Resize,
+            dismissOnDrag = demo != Demo.Locked,
+            dismissOnScrim = demo != Demo.Locked,
+            dismissOnBack = demo != Demo.Locked,
+        )
+    }
+    var message by rememberSaveable { mutableStateOf("") }
+    var extra by rememberSaveable { mutableStateOf(false) }
+    val messages = remember { mutableStateListOf("Sounds good. Let's ship it.", "The composer stays visible at every detent.", "Try scrolling, then opening the keyboard.", "Welcome to Atlas Sheet.") }
+    val header: @Composable () -> Unit = {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).testTag("sheet-header")) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(demo.label, modifier = Modifier.testTag("sheet-title"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text(state.currentDetent ?: "Opening", color = Accent, style = MaterialTheme.typography.labelMedium)
+                }
+                TextButton(onClick = { scope.launch { state.hide() } }, modifier = Modifier.testTag("close")) { Text("Close") }
+            }
+            if (demo != Demo.Fit) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("peek", "medium", "expanded").forEach { id ->
+                        FilterChip(selected = state.currentDetent == id, onClick = { scope.launch { state.animateTo(id) } }, label = { Text(id.replaceFirstChar { it.uppercase() }) }, modifier = Modifier.testTag("detent-$id"))
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+    }
+    val footer: @Composable () -> Unit = {
+        Surface(shadowElevation = 6.dp) {
+            if (demo == Demo.Chat) {
+                Row(Modifier.fillMaxWidth().padding(16.dp).testTag("footer"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(message, { message = it }, placeholder = { Text("Message the team") }, modifier = Modifier.weight(1f).testTag("composer"), maxLines = 3, shape = RoundedCornerShape(24.dp))
+                    Button(onClick = { if (message.isNotBlank()) { messages.add(0, message); message = "" } }, modifier = Modifier.testTag("send")) { Text("Send") }
+                }
+            } else {
+                Column(Modifier.fillMaxWidth().padding(16.dp).testTag("footer")) {
+                    Button(onClick = {
+                        if (demo == Demo.Fit) extra = !extra else scope.launch { state.hide() }
+                    }, modifier = Modifier.fillMaxWidth().testTag("primary-action")) {
+                        Text(if (demo == Demo.Fit) if (extra) "Show fewer options" else "Show more options" else if (demo == Demo.Locked) "Complete & close" else "Continue")
+                    }
+                }
+            }
+        }
+    }
+    val body: @Composable ColumnScope.() -> Unit = {
+        when (demo) {
+            Demo.Chat -> LazyColumn(Modifier.fillMaxSize().testTag("body-list"), reverseLayout = true, contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(messages.size + 35, key = { it }) { i ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = if (i % 2 == 0) Arrangement.End else Arrangement.Start) {
+                        Text(if (i < messages.size) messages[i] else "Message ${40 - i}: shared context stays scrollable.", Modifier.widthIn(max = 280.dp).background(if (i % 2 == 0) Accent else Paper, RoundedCornerShape(18.dp)).padding(16.dp), color = if (i % 2 == 0) Color.White else Ink)
+                    }
+                }
+            }
+            Demo.Fit -> Column(Modifier.padding(horizontal = 24.dp, vertical = 8.dp).testTag("fit-body"), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text("Content determines this detent. Add options to watch the sheet resize.", color = Color(0xFF68728A))
+                repeat(if (extra) 8 else 2) { i -> Text("${i + 1}. Workspace option", Modifier.fillMaxWidth().background(Paper, RoundedCornerShape(12.dp)).padding(16.dp)) }
+            }
+            Demo.Form -> Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text("Your actions stay pinned while fields scroll into view.", color = Color(0xFF68728A))
+                repeat(12) { i ->
+                    var field by rememberSaveable { mutableStateOf("") }
+                    OutlinedTextField(field, { field = it }, label = { Text("Field ${i + 1}") }, modifier = Modifier.fillMaxWidth().testTag("field-$i"))
+                }
+            }
+            else -> LazyColumn(Modifier.fillMaxSize().testTag("body-list"), contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                item { Text(if (demo == Demo.Locked) "Try Back, the scrim, and dragging down. This flow only closes explicitly." else "Drag the handle or scroll this list. The footer remains outside the scrolling viewport.", color = Color(0xFF68728A)) }
+                items(100, key = { it }) { i ->
+                    Row(Modifier.fillMaxWidth().background(Paper, RoundedCornerShape(14.dp)).padding(18.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text("%02d".format(i + 1), color = Accent, fontWeight = FontWeight.Bold)
+                        Column { Text("Workspace item ${i + 1}", fontWeight = FontWeight.Medium); Text("A lazy, bounded content viewport", style = MaterialTheme.typography.bodySmall, color = Color(0xFF68728A)) }
+                    }
+                }
+            }
+        }
+    }
+    val mode = if (demo == Demo.Fit || demo == Demo.Form) SheetBodyMode.Scroll else SheetBodyMode.Fill
+    if (demo == Demo.Persistent) {
+        AtlasSheetHost(state, detents, behavior = behavior, bodyMode = mode, title = demo.label, scrimColor = Color.Unspecified, header = header, footer = footer, content = body)
+        LaunchedEffect(state) { snapshotFlow { state.currentDetent }.collect { if (it == null) close() } }
+    } else {
+        AtlasModalSheet(state, detents, close, behavior = behavior, bodyMode = mode, title = demo.label, header = header, footer = footer, content = body)
+    }
+}
