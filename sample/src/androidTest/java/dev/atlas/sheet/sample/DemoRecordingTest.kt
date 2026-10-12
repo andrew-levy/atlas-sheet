@@ -13,7 +13,8 @@ class DemoRecordingTest {
     private fun pause() { compose.waitForIdle(); Thread.sleep(1400) }
     private fun open(name: String) {
         pause()
-        compose.onNodeWithTag("open-$name").performScrollTo().performClick()
+        compose.onNodeWithTag("gallery").performScrollToNode(hasTestTag("open-$name"))
+        compose.onNodeWithTag("open-$name").performClick()
         pause()
     }
     @Test fun detents() {
