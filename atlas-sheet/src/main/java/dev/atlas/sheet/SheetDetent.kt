@@ -29,7 +29,7 @@ public class SheetDetent private constructor(
             return SheetDetent(id, { height })
         }
         public fun content(id: String = "content"): SheetDetent =
-            SheetDetent(id, { contentHeight + chromeHeight }, requiresContentMeasurement = true)
+            SheetDetent(id, { maxOf(1.dp, contentHeight + chromeHeight) }, requiresContentMeasurement = true)
         public fun expanded(id: String = "expanded"): SheetDetent = fraction(id, 1f)
         public fun custom(id: String, resolve: SheetDetentScope.() -> Dp): SheetDetent = SheetDetent(id, resolve)
     }
