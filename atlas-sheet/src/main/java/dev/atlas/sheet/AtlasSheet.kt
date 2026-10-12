@@ -75,7 +75,8 @@ public fun AtlasModalSheet(
         SideEffect {
             // Compose draws the scrim, including status/navigation bar regions, exactly once.
             window?.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-            window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+            // DialogProperties selects Resize on API 30 and below and Nothing on API 31+.
+            // Preserving that choice is required for legacy IME inset delivery.
         }
         LaunchedEffect(state) {
             try { state.enter() } catch (interrupted: CancellationException) { coroutineContext.ensureActive() }
@@ -121,6 +122,7 @@ public fun AtlasSheetHost(
     var headerHeight by remember { mutableIntStateOf(0) }
     var footerHeight by remember { mutableIntStateOf(0) }
     var naturalBodyHeight by remember { mutableIntStateOf(0) }
+    var viewportHeight by remember { mutableIntStateOf(0) }
     val isVisible by remember(state) { derivedStateOf { state.isVisible } }
     val topInset = maxOf(WindowInsets.systemBars.getTop(density), WindowInsets.displayCutout.getTop(density))
     val navInset = WindowInsets.systemBars.getBottom(density)
@@ -149,9 +151,9 @@ public fun AtlasSheetHost(
         if (imeVisible) keyboard?.hide() else scope.launch { state.hide() }
     }
 
-    BoxWithConstraints(modifier.fillMaxSize()) {
-        val availablePx = with(density) { maxHeight.toPx() - topMargin.toPx() } - topInset - bottomInset
-        if (availablePx <= 0f) return@BoxWithConstraints
+    Box(modifier.fillMaxSize().onSizeChanged { viewportHeight = it.height }) {
+        val availablePx = viewportHeight - with(density) { topMargin.toPx() } - topInset - bottomInset
+        if (availablePx <= 0f) return@Box
         val chrome = headerHeight + footerHeight
         val detentScope = with(density) {
             SheetDetentScope(availablePx.toDp(), naturalBodyHeight.toDp(), chrome.toDp())
@@ -181,7 +183,7 @@ public fun AtlasSheetHost(
             .clip(shape)
 
         Layout(modifier = surfaceModifier, content = {
-            Column(Modifier.fillMaxWidth()
+            Layout(modifier = Modifier.fillMaxWidth()
                 .shadow(16.dp, shape).background(containerColor, shape)
                 .then(if (behavior.draggable) Modifier.nestedScroll(nested) else Modifier)
                 .semantics {
@@ -191,7 +193,7 @@ public fun AtlasSheetHost(
                     if (behavior.dismissOnDrag) dismiss { scope.launch { state.hide() }; true }
                     expand { scope.launch { state.expand() }; true }
                     collapse { scope.launch { state.collapse() }; true }
-                }) {
+                }, content = {
                 // Foundation only: no Material theme is imposed on consumers.
                 CompositionLocalProvider(LocalSheetContentColor provides contentColor) {
                     Column(Modifier.fillMaxWidth().onSizeChanged { headerHeight = it.height }
@@ -201,13 +203,26 @@ public fun AtlasSheetHost(
                     }
                     if (bodyMode == SheetBodyMode.Scroll) {
                         val scroll = rememberScrollState()
-                        Box(Modifier.weight(1f).fillMaxWidth().clipToBoundsForSheet().verticalScroll(scroll)) {
+                        Box(Modifier.fillMaxWidth().clipToBoundsForSheet().verticalScroll(scroll)) {
                             Column(Modifier.fillMaxWidth().onSizeChanged { naturalBodyHeight = it.height }, content = content)
                         }
                     } else {
-                        Column(Modifier.weight(1f).fillMaxWidth().clipToBoundsForSheet(), content = content)
+                        Column(Modifier.fillMaxWidth().clipToBoundsForSheet(), content = content)
                     }
                     Box(Modifier.fillMaxWidth().onSizeChanged { footerHeight = it.height }) { footer?.invoke() }
+                }
+            }) { parts, bounds ->
+                // A small window or tall header must not consume a fitting footer's space.
+                val width = bounds.maxWidth
+                val height = bounds.maxHeight
+                val footerPart = parts[2].measure(Constraints(minWidth = width, maxWidth = width, maxHeight = height))
+                val headerPart = parts[0].measure(Constraints(minWidth = width, maxWidth = width, maxHeight = height - footerPart.height))
+                val bodyHeight = (height - footerPart.height - headerPart.height).coerceAtLeast(0)
+                val bodyPart = parts[1].measure(Constraints.fixed(width, bodyHeight))
+                layout(width, height) {
+                    headerPart.place(0, 0)
+                    bodyPart.place(0, headerPart.height)
+                    footerPart.place(0, height - footerPart.height)
                 }
             }
         }) { measurables, constraints ->
