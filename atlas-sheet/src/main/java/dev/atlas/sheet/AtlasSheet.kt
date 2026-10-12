@@ -121,6 +121,7 @@ public fun AtlasSheetHost(
     var headerHeight by remember { mutableIntStateOf(0) }
     var footerHeight by remember { mutableIntStateOf(0) }
     var naturalBodyHeight by remember { mutableIntStateOf(0) }
+    val isVisible by remember(state) { derivedStateOf { state.isVisible } }
     val topInset = maxOf(WindowInsets.systemBars.getTop(density), WindowInsets.displayCutout.getTop(density))
     val navInset = WindowInsets.systemBars.getBottom(density)
     val imeInset = WindowInsets.ime.getBottom(density)
@@ -144,7 +145,7 @@ public fun AtlasSheetHost(
             }
         } else beforeIme = null
     }
-    BackHandler(enabled = state.isVisible && behavior.dismissOnBack) {
+    BackHandler(enabled = isVisible && behavior.dismissOnBack) {
         if (imeVisible) keyboard?.hide() else scope.launch { state.hide() }
     }
 
@@ -160,7 +161,7 @@ public fun AtlasSheetHost(
         })
         SideEffect { state.updateGeometry(geometry, behavior.dismissOnDrag) }
 
-        if (scrimColor != Color.Unspecified && state.isVisible) {
+        if (scrimColor != Color.Unspecified && isVisible) {
             Box(Modifier.fillMaxSize()
                 .drawBehind {
                     val smallestHeight = geometry.availableHeight - geometry.offsets.getValue(geometry.smallest)
@@ -172,19 +173,15 @@ public fun AtlasSheetHost(
                 }
                 .semantics { if (behavior.dismissOnScrim) contentDescription = "Dismiss $title" })
         }
-        val visibleHeight = (availablePx - state.offsetOrHidden()).coerceIn(0f, availablePx)
-        // Keep chrome measured even while hidden; the clipped outer viewport remains zero-height.
-        val layoutHeight = if (chrome == 0) availablePx else visibleHeight.coerceAtLeast(chrome.toFloat().coerceAtMost(availablePx))
         val surfaceModifier = Modifier
             .align(Alignment.BottomCenter)
             .padding(bottom = with(density) { bottomInset.toDp() })
             .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Horizontal))
             .widthIn(max = maxWidth).fillMaxWidth()
-            .height(with(density) { visibleHeight.toDp() })
             .clip(shape)
 
         Layout(modifier = surfaceModifier, content = {
-            Column(Modifier.fillMaxWidth().height(with(density) { layoutHeight.toDp() })
+            Column(Modifier.fillMaxWidth()
                 .shadow(16.dp, shape).background(containerColor, shape)
                 .then(if (behavior.draggable) Modifier.nestedScroll(nested) else Modifier)
                 .semantics {
@@ -214,8 +211,11 @@ public fun AtlasSheetHost(
                 }
             }
         }) { measurables, constraints ->
+            // Offset reads happen in measurement, not composition, on each drag/animation frame.
+            val visibleHeight = (availablePx - state.offsetOrHidden()).coerceIn(0f, availablePx)
+            val layoutHeight = if (chrome == 0) availablePx else visibleHeight.coerceAtLeast(chrome.toFloat().coerceAtMost(availablePx))
             val child = measurables.single().measure(Constraints.fixed(constraints.maxWidth, layoutHeight.roundToInt()))
-            layout(constraints.maxWidth, constraints.maxHeight) { child.place(0, 0) }
+            layout(constraints.maxWidth, visibleHeight.roundToInt()) { child.place(0, 0) }
         }
     }
 }
