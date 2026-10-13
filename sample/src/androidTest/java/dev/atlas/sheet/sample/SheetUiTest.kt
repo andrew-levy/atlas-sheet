@@ -3,6 +3,7 @@ package dev.atlas.sheet.sample
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -12,6 +13,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import dev.atlas.sheet.*
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.espresso.Espresso.onView
+import androidx.test.espresso.matcher.RootMatchers.isDialog
+import androidx.test.espresso.matcher.ViewMatchers.isRoot
 import androidx.test.uiautomator.UiDevice
 import org.junit.Assert.*
 import org.junit.Rule
@@ -62,11 +66,9 @@ class SheetUiTest {
     @Test fun composerSendsMessagesAndRemainsVisibleWithIme() {
         open("Chat")
         val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
-        // Dialog attachment/native layout is asynchronous; node existence alone is too early.
-        compose.waitUntil(10000) {
-            val bounds = compose.onNodeWithTag("footer").fetchSemanticsNode().boundsInWindow
-            bounds.height > 0f && bounds.bottom > device.displayHeight * .85f
-        }
+        // Compose test clicks bypass the window manager, so they can land before the dialog window
+        // gains input focus; the IME ignores show requests from an unfocused window.
+        onView(isRoot()).inRoot(isDialog()).check { view, _ -> assertTrue("Dialog window focus", view.hasWindowFocus()) }
         val initialFooterBottom = compose.onNodeWithTag("footer").fetchSemanticsNode().boundsInWindow.bottom
         compose.onNodeWithTag("composer").performClick()
         try {
@@ -75,7 +77,11 @@ class SheetUiTest {
             }
         } catch (failure: Throwable) {
             val now = compose.onNodeWithTag("footer").fetchSemanticsNode().boundsInWindow
-            throw AssertionError("Keyboard movement: initial=$initialFooterBottom now=$now display=${device.displayHeight}", failure)
+            val focused = compose.onNodeWithTag("composer").fetchSemanticsNode().config.getOrNull(SemanticsProperties.Focused)
+            val ime = device.executeShellCommand("dumpsys input_method").lines()
+                .filter { line -> listOf("mInputShown", "mCurFocusedWindow", "mServedView", "mIsInputViewShown").any { it in line } }
+                .joinToString(" | ") { it.trim() }
+            throw AssertionError("Keyboard movement: initial=$initialFooterBottom now=$now display=${device.displayHeight} focused=$focused ime=[$ime]", failure)
         }
         compose.onNodeWithTag("composer").performTextInput("Hello Atlas")
         compose.waitForIdle()
