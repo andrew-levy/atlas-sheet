@@ -13,9 +13,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import dev.atlas.sheet.*
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.espresso.Espresso.onView
-import androidx.test.espresso.matcher.RootMatchers.isDialog
-import androidx.test.espresso.matcher.ViewMatchers.isRoot
 import androidx.test.uiautomator.UiDevice
 import org.junit.Assert.*
 import org.junit.Rule
@@ -66,11 +63,11 @@ class SheetUiTest {
     @Test fun composerSendsMessagesAndRemainsVisibleWithIme() {
         open("Chat")
         val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
-        // Compose test clicks bypass the window manager, so they can land before the dialog window
-        // gains input focus; the IME ignores show requests from an unfocused window.
-        onView(isRoot()).inRoot(isDialog()).check { view, _ -> assertTrue("Dialog window focus", view.hasWindowFocus()) }
         val initialFooterBottom = compose.onNodeWithTag("footer").fetchSemanticsNode().boundsInWindow.bottom
-        compose.onNodeWithTag("composer").performClick()
+        // Compose test clicks bypass the window manager and can land before the dialog window has
+        // input focus, which makes the IME ignore the request. A device tap is routed like a user's.
+        val composer = compose.onNodeWithTag("composer").fetchSemanticsNode()
+        device.click((composer.positionOnScreen.x + composer.size.width / 2).toInt(), (composer.positionOnScreen.y + composer.size.height / 2).toInt())
         try {
             compose.waitUntil(20000) {
                 compose.onNodeWithTag("footer").fetchSemanticsNode().boundsInWindow.bottom < initialFooterBottom - 100f
