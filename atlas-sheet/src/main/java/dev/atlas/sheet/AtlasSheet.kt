@@ -1,6 +1,10 @@
 package dev.atlas.sheet
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.view.WindowManager
+import androidx.core.view.WindowCompat
 import androidx.compose.animation.core.Animatable
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -73,13 +77,22 @@ public fun AtlasModalSheet(
             dismissOnClickOutside = false,
         ),
     ) {
-        val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+        val view = LocalView.current
+        val window = (view.parent as? DialogWindowProvider)?.window
+        val activity = remember(view) { view.context.sheetHostActivity() }
         SideEffect {
             // Compose owns the content scrim; system bars must not receive window dimming.
             window?.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             if (android.os.Build.VERSION.SDK_INT >= 29) {
                 window?.isNavigationBarContrastEnforced = false
                 window?.isStatusBarContrastEnforced = false
+            }
+            if (window != null && activity != null) {
+                val host = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+                WindowCompat.getInsetsController(window, window.decorView).apply {
+                    isAppearanceLightStatusBars = host.isAppearanceLightStatusBars
+                    isAppearanceLightNavigationBars = host.isAppearanceLightNavigationBars
+                }
             }
             // DialogProperties selects Resize on API 30 and below and Nothing on API 31+.
             // Preserving that choice is required for legacy IME inset delivery.
@@ -269,3 +282,9 @@ public fun SheetDragHandle(modifier: Modifier = Modifier, color: Color = Color(0
 }
 
 private fun Modifier.clipToBoundsForSheet(): Modifier = this.clip(androidx.compose.ui.graphics.RectangleShape)
+
+private tailrec fun Context.sheetHostActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.sheetHostActivity()
+    else -> null
+}

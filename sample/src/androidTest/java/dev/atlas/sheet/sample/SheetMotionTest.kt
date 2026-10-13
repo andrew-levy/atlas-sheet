@@ -21,6 +21,37 @@ import org.junit.Test
 class SheetMotionTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
+    @Test fun modalPreservesHostSystemBarIconAppearance() {
+        var dialogWindow: android.view.Window? = null
+        compose.runOnUiThread { compose.activity.setContent {
+            AtlasModalSheet(
+                state = rememberSheetState(),
+                detents = listOf(SheetDetent.expanded()),
+                onDismissRequest = {},
+            ) {
+                val view = androidx.compose.ui.platform.LocalView.current
+                SideEffect {
+                    dialogWindow = (view.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
+                }
+                Spacer(Modifier.height(120.dp))
+            }
+        } }
+        compose.waitForIdle()
+        compose.runOnUiThread {
+            val activityWindow = compose.activity.window
+            val modalWindow = checkNotNull(dialogWindow)
+            val host = androidx.core.view.WindowCompat.getInsetsController(activityWindow, activityWindow.decorView)
+            val modal = androidx.core.view.WindowCompat.getInsetsController(modalWindow, modalWindow.decorView)
+            assertEquals(host.isAppearanceLightStatusBars, modal.isAppearanceLightStatusBars)
+            assertEquals(host.isAppearanceLightNavigationBars, modal.isAppearanceLightNavigationBars)
+            assertEquals(0, modalWindow.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            if (android.os.Build.VERSION.SDK_INT >= 29) {
+                assertFalse(modalWindow.isNavigationBarContrastEnforced)
+                assertFalse(modalWindow.isStatusBarContrastEnforced)
+            }
+        }
+    }
+
     @Test fun scrimExcludesSystemBarInsets() {
         var top = 0
         var bottom = 0
