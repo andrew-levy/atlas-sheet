@@ -132,6 +132,10 @@ keeps the body mounted and clears focus/IME. `onDismissed` runs after the exit
 animation finishes; it does not fire simply because the host starts hidden.
 Saved state preserves the selected detent and hidden/visible state across view recreation.
 
+The X/close button should call `scope.launch { state.hide() }`, then remove or dismiss
+the Fragment from `onDismissed`. Calling Fragment `dismiss()` directly removes its
+view immediately, before the sheet can animate.
+
 A Fragment can return this ComposeView directly:
 
 ```kotlin
@@ -153,44 +157,18 @@ override fun onCreateView(
 ```
 
 `AtlasSheet` draws inside the Fragment view rather than opening another Dialog window.
+The scrim excludes system-bar and display-cutout insets, leaving those regions
+unchanged. Dialog window dimming and automatic bar contrast overlays are disabled.
 Its bounds are the parent container's bounds: use a full-window overlay Fragment container
 if the sheet/scrim should cover the existing screen. Configure edge-to-edge on the Activity,
 and avoid applying IME/navigation padding twice. The host owns sheet Back handling while
 visible; your navigation owner handles removing the Fragment after `onDismissed`.
 Activity/Fragment transitions should not also slide the same view vertically; choose one
-owner for that motion. The core composables also work in ordinary Fragments; the DialogFragment adapter below owns animated `dismiss()`.
+owner for that motion. The library has no Fragment dependency.
 
-For a `DialogFragment` with a close button that calls `dismiss()` directly, extend
-`AtlasSheetDialogFragment`. It delays Fragment removal until the Compose exit finishes:
-
-```kotlin
-class OrderSheetFragment : AtlasSheetDialogFragment() {
-    @Composable
-    override fun SheetContent(state: SheetState) {
-        YourTheme {
-            AtlasSheet(
-                state = state,
-                detents = listOf(SheetDetent.content(), SheetDetent.expanded()),
-                footer = { Button(onClick = { dismiss() }) { Text("Close") } },
-            ) { OrderDetails() }
-        }
-    }
-}
-// Open from your Fragment/Activity:
-OrderSheetFragment().show(supportFragmentManager, "order-sheet")
-```
-
-The adapter handles `dismiss()` and `dismissAllowingStateLoss()`, plus sheet Back,
-scrim and drag dismissal. `dismissNow()` remains synchronous and skips animation.
-Always pass the supplied state to `AtlasSheet`; use `AtlasSheet`, rather than a nested
-`AtlasModalSheet`. An ordinary Fragment or DialogFragment cannot animate after its
-view is removed: call `state.hide()` first and remove it from `onDismissed`, or use
-this adapter. The sample's Fragment example calls `dismiss()` directly, and its
-regression test checks an intermediate exit frame before composition disposal.
-
-The scrim covers the app content inside system-bar and display-cutout insets; it does
-not tint status/navigation bars. Dialog hosts disable window dimming and automatic
-bar contrast overlays. The adapter preserves the Activity's light/dark bar icons.
+The sample's **Fragment root example** runs a real `FragmentActivity`, overlay container,
+and `RootSheetFragment` with view-lifecycle disposal. `FragmentSheetTest` verifies that exit
+removes the Fragment, disposes its composition, and allows opening a fresh Fragment.
 
 `AtlasModalSheet` remains available for callers who need Dialog-level focus/input isolation.
 Its legacy lifecycle still expects removal after `onDismissRequest`; choose `AtlasSheet` for

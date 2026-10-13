@@ -21,7 +21,6 @@ dependencies {
     api("androidx.compose.ui:ui")
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.core:core-ktx:1.16.0")
-    api("androidx.fragment:fragment-ktx:1.8.8")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
 }
