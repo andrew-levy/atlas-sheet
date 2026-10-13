@@ -15,7 +15,8 @@ panels over interactive content.
 
 These are recordings of the Android sample, driven by the included instrumentation tests.
 Click the video link for the full MP4; GIFs give GitHub an inline preview.
-Captured on an API 35 Pixel 4 emulator (1080 × 2280) one Compose frame at a time, so sheet
+Refreshed October 13, 2026 from the scrim-fix sample on an API 35 Pixel 4 emulator
+(1080 × 2280) with three-button navigation. Captured one Compose frame at a time, so sheet
 motion plays at its real speed; H.264 MP4s are optimized for streaming. These are real sample
 screenshots, not frame-time benchmarks.
 
@@ -132,6 +133,10 @@ keeps the body mounted and clears focus/IME. `onDismissed` runs after the exit
 animation finishes; it does not fire simply because the host starts hidden.
 Saved state preserves the selected detent and hidden/visible state across view recreation.
 
+The X/close button should call `scope.launch { state.hide() }`, then remove or dismiss
+the Fragment from `onDismissed`. Calling Fragment `dismiss()` directly removes its
+view immediately, before the sheet can animate.
+
 A Fragment can return this ComposeView directly:
 
 ```kotlin
@@ -153,6 +158,8 @@ override fun onCreateView(
 ```
 
 `AtlasSheet` draws inside the Fragment view rather than opening another Dialog window.
+The scrim excludes system-bar and display-cutout insets, leaving those regions
+unchanged. Dialog window dimming and automatic bar contrast overlays are disabled.
 Its bounds are the parent container's bounds: use a full-window overlay Fragment container
 if the sheet/scrim should cover the existing screen. Configure edge-to-edge on the Activity,
 and avoid applying IME/navigation padding twice. The host owns sheet Back handling while

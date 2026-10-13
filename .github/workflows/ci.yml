@@ -116,7 +116,11 @@ jobs:
           profile: pixel_4
           disk-size: 2048M
           disable-animations: false
-          script: python3 scripts/record-demos.py
+          script: |
+            adb shell settings put global hide_error_dialogs 1
+            adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS
+            adb shell cmd overlay enable-exclusive --category com.android.internal.systemui.navbar.threebutton
+            python3 scripts/record-demos.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
