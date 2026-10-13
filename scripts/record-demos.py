@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Record the real Compose sample using adb + instrumentation; no mock UI or generated frames."""
+"""Record the real Compose sample frame by frame using adb + instrumentation; no mock UI.
+
+DemoRecordingTest advances the paused Compose clock one output frame at a time and screenshots the
+device after each frame reaches the display. This script pulls those screenshots and assembles them
+at the same frame duration, so recorded motion has its real timing even on a slow emulator.
+"""
 import argparse
 from pathlib import Path
 import subprocess
@@ -7,59 +12,39 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 SCENARIOS = ['detents', 'chat', 'contentFit', 'stickyActions', 'persistent', 'protectedFlow']
-MARKER_TAG = 'AtlasDemo'  # DemoRecordingTest.MARKER_TAG
-SCENARIO_TIMEOUT = 300  # seconds; a scenario normally finishes in well under a minute
+PACKAGE = 'dev.atlas.sheet.sample'
+FRAMES = f'/sdcard/Android/data/{PACKAGE}/files/demo-frames'
+FRAME_MILLIS = 32  # DemoRecordingTest.FRAME_MILLIS
+SCENARIO_TIMEOUT = 900  # seconds
 
 def run(*args, **kwargs):
     return subprocess.run(args, check=True, **kwargs)
 
-def marker_times():
-    """Device epoch seconds for each AtlasDemo logcat message, keyed by message."""
-    log = run('adb', 'logcat', '-d', '-v', 'epoch', '-s', f'{MARKER_TAG}:I', capture_output=True, text=True).stdout
-    times = {}
-    for line in log.splitlines():
-        fields = line.split()
-        if len(fields) >= 2 and line.rstrip().endswith(f'{MARKER_TAG}: {fields[-1]}'):
-            try:
-                times[fields[-1]] = float(fields[0])
-            except ValueError:
-                pass
-    return times
-
-def encode(raw, mp4, gif, start):
+def encode(frames, mp4, gif):
     # Constant 30 fps H.264 with faststart; the GIF preview derives from the published MP4.
-    run('ffmpeg', '-v', 'error', '-y', '-ss', f'{start:.3f}', '-i', str(raw), '-an', '-vf', 'fps=30',
-        '-c:v', 'libx264', '-profile:v', 'high', '-pix_fmt', 'yuv420p', '-crf', '28', '-preset', 'slow',
-        '-movflags', '+faststart', str(mp4))
+    run('ffmpeg', '-v', 'error', '-y', '-framerate', f'{1000 / FRAME_MILLIS}', '-i', str(frames / '%05d.jpg'),
+        '-vf', 'fps=30', '-c:v', 'libx264', '-profile:v', 'high', '-pix_fmt', 'yuv420p', '-crf', '28',
+        '-preset', 'slow', '-movflags', '+faststart', str(mp4))
     run('ffmpeg', '-v', 'error', '-y', '-i', str(mp4), '-vf',
         'fps=10,scale=360:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse', str(gif))
 
 def record(scenario, work):
     out = ROOT / 'docs' / 'videos'
     out.mkdir(parents=True, exist_ok=True)
-    remote = f'/sdcard/atlas-{scenario}.mp4'
-    raw = work / f'{scenario}.mp4'
-    run('adb', 'shell', 'am', 'force-stop', 'dev.atlas.sheet.sample')
-    run('adb', 'logcat', '-c')
-    run('adb', 'shell', 'log', '-p', 'i', '-t', MARKER_TAG, 'recording')
-    recorder = subprocess.Popen(['adb', 'shell', 'screenrecord', '--bit-rate', '3000000', '--time-limit', '180', remote], stdout=subprocess.DEVNULL)
+    run('adb', 'shell', 'am', 'force-stop', PACKAGE)
     try:
-        result = run('adb', 'shell', 'am', 'instrument', '-w', '-e', 'class', f'dev.atlas.sheet.sample.DemoRecordingTest#{scenario}', 'dev.atlas.sheet.sample.test/androidx.test.runner.AndroidJUnitRunner', capture_output=True, text=True, timeout=SCENARIO_TIMEOUT)
-        if 'OK (1 test)' not in result.stdout:
-            raise RuntimeError(result.stdout)
+        result = run('adb', 'shell', 'am', 'instrument', '-w', '-e', 'class', f'{PACKAGE}.DemoRecordingTest#{scenario}', f'{PACKAGE}.test/androidx.test.runner.AndroidJUnitRunner', capture_output=True, text=True, timeout=SCENARIO_TIMEOUT)
     except subprocess.TimeoutExpired:
-        subprocess.run(['adb', 'shell', 'am', 'force-stop', 'dev.atlas.sheet.sample'], check=False)
+        subprocess.run(['adb', 'shell', 'am', 'force-stop', PACKAGE], check=False)
         raise RuntimeError(f'{scenario} did not finish within {SCENARIO_TIMEOUT}s')
-    finally:
-        subprocess.run(['adb', 'shell', 'pkill', '-2', 'screenrecord'], check=False)
-        recorder.wait(timeout=30)
-    run('adb', 'pull', remote, str(raw))
-    run('adb', 'shell', 'rm', remote)
-    times = marker_times()
-    # screenrecord starts slightly after the 'recording' marker, so this trims at or just before 'ready'.
-    start = max(0.0, times['ready'] - times['recording']) if 'ready' in times and 'recording' in times else 0.0
-    encode(raw, out / f'{scenario}.mp4', out / f'{scenario}.gif', start)
-    print(f'Recorded {scenario} (trimmed {start:.2f}s)', flush=True)
+    if 'OK (1 test)' not in result.stdout:
+        raise RuntimeError(result.stdout)
+    run('adb', 'pull', f'{FRAMES}/{scenario}', str(work), stdout=subprocess.DEVNULL)
+    run('adb', 'shell', 'rm', '-rf', f'{FRAMES}/{scenario}')
+    frames = work / scenario
+    count = len(list(frames.glob('*.jpg')))
+    encode(frames, out / f'{scenario}.mp4', out / f'{scenario}.gif')
+    print(f'Recorded {scenario} ({count} frames, {count * FRAME_MILLIS / 1000:.1f}s)', flush=True)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
