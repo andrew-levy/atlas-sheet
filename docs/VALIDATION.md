@@ -1,4 +1,19 @@
-# Validation
+# Motion and Fragment-root update
+
+The smooth-fragment-root branch builds the library, sample APK and test APK locally.
+All 27 library unit tests pass. Release lint passes (dependency-version notices only).
+
+Added device checks cover intermediate entry/exit/resize frames, mounted-body retention
+across hide/show, and a real Fragment ComposeView being disposed after an animated exit.
+The API 24/35 workflow now includes these tests with system animation scales enabled.
+Their device results and revised recordings are still being collected.
+
+The original gallery used an auto-advancing Compose test clock, so it cannot establish
+real-world transition timing or an opening latency. Recording tests now advance individual
+frames with a wall-clock pause instead of draining animations between screen recordings.
+No representative production frame-time benchmark has been performed.
+
+## Baseline validation
 
 ## Demo recordings — October 12, 2026
 
