@@ -27,21 +27,27 @@ class HeavyContentMotionTest {
         return OpenTimings.results.getValue(demo.name).also { Log.i("AtlasHeavy", "${demo.name}: $it") }
     }
 
-    @Test fun heavyLoadingDoesNotDelayOrStallOpening() {
+    private fun runs(demo: Demo, backgroundPriority: Boolean = true): List<OpenTiming> {
+        HeavyLoad.backgroundPriority = backgroundPriority
+        return (1..5).map { open(demo) }
+    }
+
+    @Test fun backgroundPriorityLoadingDoesNotDelayOrStallOpening() {
         open(Demo.Chat)
-        val baseline = (1..3).map { open(Demo.Chat) }
-        val heavy = (1..3).map { open(Demo.Heavy) }
-        val summary = "baseline=$baseline heavy=$heavy"
-        println(summary)
+        val baseline = runs(Demo.Chat)
+        val normalPriority = runs(Demo.Heavy, backgroundPriority = false)
+        val heavy = runs(Demo.Heavy)
         fun median(values: List<Long>) = values.sorted()[values.size / 2]
+        fun describe(name: String, timings: List<OpenTiming>) = "$name: start=${median(timings.map { it.firstMotionMillis })}ms " +
+            "motion=${median(timings.map { it.settledMillis - it.firstMotionMillis })}ms longestFrame=${median(timings.map { it.longestFrameMillis })}ms"
+        val summary = listOf(describe("chat", baseline), describe("heavy/normal-priority", normalPriority), describe("heavy/background-priority", heavy)).joinToString("; ")
+        Log.i("AtlasHeavy", summary)
+        println(summary)
         val baseStart = median(baseline.map { it.firstMotionMillis })
-        val heavyStart = median(heavy.map { it.firstMotionMillis })
-        val baseSettle = median(baseline.map { it.settledMillis - it.firstMotionMillis })
-        val heavySettle = median(heavy.map { it.settledMillis - it.firstMotionMillis })
+        val baseMotion = median(baseline.map { it.settledMillis - it.firstMotionMillis })
         val baseFrame = median(baseline.map { it.longestFrameMillis })
-        val heavyFrame = median(heavy.map { it.longestFrameMillis })
-        assertTrue("Opening started later under load: $summary", heavyStart <= baseStart + 150)
-        assertTrue("Opening took longer under load: $summary", heavySettle <= baseSettle * 3 / 2 + 150)
-        assertTrue("Longest frame grew under load: $summary", heavyFrame <= baseFrame * 2 + 50)
+        assertTrue("Opening started later under load: $summary", median(heavy.map { it.firstMotionMillis }) <= baseStart + 150)
+        assertTrue("Opening took longer under load: $summary", median(heavy.map { it.settledMillis - it.firstMotionMillis }) <= baseMotion * 3 / 2 + 150)
+        assertTrue("Longest frame grew under load: $summary", median(heavy.map { it.longestFrameMillis }) <= baseFrame * 2 + 50)
     }
 }

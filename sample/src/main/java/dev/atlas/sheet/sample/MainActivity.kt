@@ -1,6 +1,7 @@
 package dev.atlas.sheet.sample
 
 import android.os.Bundle
+import android.os.Process
 import android.os.SystemClock
 import android.content.Intent
 import androidx.compose.ui.platform.LocalContext
@@ -33,6 +34,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
+import kotlinx.coroutines.asCoroutineDispatcher
 
 private val Ink = Color(0xFF172033)
 private val Accent = Color(0xFF6554E8)
@@ -219,11 +222,24 @@ private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
 
 class HeavyMessage(val author: String, val text: String, val digest: String)
 
+object HeavyLoad {
+    /**
+     * Normal-priority workers on every core compete with the UI and render threads and delay the
+     * sheet on small devices; background priority leaves frame production first in line.
+     */
+    @Volatile var backgroundPriority = true
+    private val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(2)
+    val background = Executors.newFixedThreadPool(cores) { work ->
+        Thread({ Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND); work.run() }, "heavy-load")
+    }.asCoroutineDispatcher()
+    val dispatcher get() = if (backgroundPriority) background else Dispatchers.Default
+}
+
 /**
  * Simulates opening a large conversation: a slow database read plus CPU-heavy decoding of every
  * message, spread over all cores, all while the sheet is presenting.
  */
-private suspend fun loadHeavyThread(count: Int = 3000, rounds: Int = 400): List<HeavyMessage> = withContext(Dispatchers.Default) {
+private suspend fun loadHeavyThread(count: Int = 3000, rounds: Int = 400): List<HeavyMessage> = withContext(HeavyLoad.dispatcher) {
     coroutineScope {
         val database = async { delay(900) }
         val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(2)

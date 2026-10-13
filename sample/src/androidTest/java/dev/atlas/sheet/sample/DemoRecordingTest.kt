@@ -126,7 +126,12 @@ class DemoRecordingTest {
     }
     @Test fun heavyContent() {
         open("Heavy")
-        compose.waitUntil(30_000) { compose.onAllNodesWithTag("body-list").fetchSemanticsNodes().isNotEmpty() }
+        // The loaded thread is delivered through the paused clock's dispatcher, so keep capturing.
+        var frames = 0
+        while (compose.onAllNodesWithTag("body-list").fetchSemanticsNodes().isEmpty()) {
+            check(frames++ < 900) { "Heavy thread never loaded" }
+            pause(FRAME_MILLIS)
+        }
         pause()
         compose.onNodeWithTag("body-list").performTouchInput { swipeDown() }; pause()
         compose.onNodeWithTag("detent-expanded").performClick(); pause()
