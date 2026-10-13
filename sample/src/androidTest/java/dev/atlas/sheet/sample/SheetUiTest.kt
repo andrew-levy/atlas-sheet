@@ -14,12 +14,16 @@ import androidx.compose.ui.unit.dp
 import dev.atlas.sheet.*
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiDevice
+import android.os.Build
+import android.view.inspector.WindowInspector
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
 
 class SheetUiTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+    private fun focusedWindow(device: UiDevice) = device.executeShellCommand("dumpsys window").lines()
+        .filter { "mCurrentFocus" in it || "mFocusedApp" in it }.joinToString(" | ") { it.trim() }
     private fun open(name: String) {
         compose.onNodeWithTag("gallery").performScrollToNode(hasTestTag("open-$name"))
         compose.onNodeWithTag("open-$name").performClick()
@@ -64,10 +68,22 @@ class SheetUiTest {
         open("Chat")
         val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
         val initialFooterBottom = compose.onNodeWithTag("footer").fetchSemanticsNode().boundsInWindow.bottom
-        // Compose test clicks bypass the window manager and can land before the dialog window has
-        // input focus, which makes the IME ignore the request. A device tap is routed like a user's.
-        val composer = compose.onNodeWithTag("composer").fetchSemanticsNode()
-        device.click((composer.positionOnScreen.x + composer.size.width / 2).toInt(), (composer.positionOnScreen.y + composer.size.height / 2).toInt())
+        // The IME ignores show requests from an unfocused window, and Compose test clicks don't
+        // move window focus. Wait until the dialog window (not the activity) is focused.
+        if (Build.VERSION.SDK_INT >= 29) {
+            try {
+                compose.waitUntil(10000) {
+                    var dialogFocused = false
+                    compose.runOnUiThread {
+                        dialogFocused = WindowInspector.getGlobalWindowViews().any { it !== compose.activity.window.decorView && it.hasWindowFocus() }
+                    }
+                    dialogFocused
+                }
+            } catch (failure: Throwable) {
+                throw AssertionError("Sheet dialog never gained window focus: ${focusedWindow(device)}", failure)
+            }
+        }
+        compose.onNodeWithTag("composer").performClick()
         try {
             compose.waitUntil(20000) {
                 compose.onNodeWithTag("footer").fetchSemanticsNode().boundsInWindow.bottom < initialFooterBottom - 100f
@@ -78,7 +94,7 @@ class SheetUiTest {
             val ime = device.executeShellCommand("dumpsys input_method").lines()
                 .filter { line -> listOf("mInputShown", "mCurFocusedWindow", "mServedView", "mIsInputViewShown").any { it in line } }
                 .joinToString(" | ") { it.trim() }
-            throw AssertionError("Keyboard movement: initial=$initialFooterBottom now=$now display=${device.displayHeight} focused=$focused ime=[$ime]", failure)
+            throw AssertionError("Keyboard movement: initial=$initialFooterBottom now=$now display=${device.displayHeight} focused=$focused ime=[$ime] ${focusedWindow(device)}", failure)
         }
         compose.onNodeWithTag("composer").performTextInput("Hello Atlas")
         compose.waitForIdle()
