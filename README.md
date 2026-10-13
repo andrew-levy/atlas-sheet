@@ -27,6 +27,7 @@ screenshots, not frame-time benchmarks.
 | Sticky actions | A long form with a bounded scroll body and keyboard-aware footer | [MP4](docs/videos/stickyActions.mp4) |
 | Persistent | An inline host without a scrim | [MP4](docs/videos/persistent.mp4) |
 | Protected flow | User dismissal disabled; explicit programmatic dismissal | [MP4](docs/videos/protectedFlow.mp4) |
+| Heavy content | 3,000 messages decoded on every core plus a slow database read while the sheet opens | [MP4](docs/videos/heavyContent.mp4) |
 
 <details open><summary>Detents</summary>
 
@@ -56,6 +57,11 @@ screenshots, not frame-time benchmarks.
 <details><summary>Protected flow</summary>
 
 ![Protected flow demo](docs/videos/protectedFlow.gif)
+
+</details>
+<details><summary>Heavy content</summary>
+
+![Heavy content demo](docs/videos/heavyContent.gif)
 
 </details>
 
