@@ -15,7 +15,8 @@ panels over interactive content.
 
 These are recordings of the Android sample, driven by the included instrumentation tests.
 Click the video link for the full MP4; GIFs give GitHub an inline preview.
-Captured on an API 35 Pixel 4 emulator (1080 × 2280) one Compose frame at a time, so sheet
+Refreshed October 13, 2026 from the scrim-fix sample on an API 35 Pixel 4 emulator
+(1080 × 2280) with three-button navigation. Captured one Compose frame at a time, so sheet
 motion plays at its real speed; H.264 MP4s are optimized for streaming. These are real sample
 screenshots, not frame-time benchmarks.
 
