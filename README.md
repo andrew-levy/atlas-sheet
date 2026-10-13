@@ -15,6 +15,8 @@ panels over interactive content.
 
 These are recordings of the Android sample, driven by the included instrumentation tests.
 Click the video link for the full MP4; GIFs give GitHub an inline preview.
+Captured on an API 35 Pixel 4 emulator (1080 × 2280), with startup screens trimmed
+and H.264 MP4s optimized for streaming. These are real sample recordings, not frame-time benchmarks.
 
 | Scenario | Demonstrates | Recording |
 | --- | --- | --- |
@@ -62,6 +64,7 @@ Open this repository in Android Studio, select `sample`, and run on Android 24+.
 Use JDK 17 and install Android SDK 35. The Gradle wrapper is included.
 
 ```bash
+chmod +x gradlew # GitHub's browser uploader does not retain the executable bit.
 ./gradlew :sample:assembleDebug :atlas-sheet:testDebugUnitTest
 ./gradlew :sample:connectedDebugAndroidTest \
   -Pandroid.testInstrumentationRunnerArguments.class=dev.atlas.sheet.sample.SheetUiTest
@@ -138,7 +141,7 @@ form/chat data for you. Reopening a modal uses the state's current detent when a
 
 ```kotlin
 SheetDetent.custom("reading") {
-    minOf(availableHeight * 0.8f, contentHeight + chromeHeight)
+    maxOf(1.dp, minOf(availableHeight * 0.8f, contentHeight + chromeHeight))
 }
 ```
 
@@ -147,6 +150,8 @@ viewport and at least the visible sticky chrome plus one pixel. If resizing make
 equivalent, the first declared ID wins; the other ID remains a programmatic alias. A removed
 active detent falls back to the smallest surviving one. Resolvers run during layout-related
 composition: keep them inexpensive and free of side effects.
+Before the first measurement, `contentHeight` and `chromeHeight` are zero; custom resolvers
+must still return a positive provisional height, as the example above does.
 
 ## Chat and lazy content
 
