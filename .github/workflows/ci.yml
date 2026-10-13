@@ -66,8 +66,12 @@ jobs:
           target: default
           profile: pixel_4
           disk-size: 2048M
+          ram-size: 3072M
           disable-animations: false
           script: |
+            adb wait-for-device
+            for i in $(seq 1 30); do adb shell pm list packages android > /dev/null 2>&1 && adb shell dumpsys window > /dev/null 2>&1 && break; sleep 2; done
+            sleep 15
             adb shell settings put secure show_ime_with_hard_keyboard 1
             adb shell settings put global hide_error_dialogs 1
             adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS
