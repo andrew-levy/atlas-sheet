@@ -75,8 +75,12 @@ public fun AtlasModalSheet(
     ) {
         val window = (LocalView.current.parent as? DialogWindowProvider)?.window
         SideEffect {
-            // Compose draws the scrim, including status/navigation bar regions, exactly once.
+            // Compose owns the content scrim; system bars must not receive window dimming.
             window?.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            if (android.os.Build.VERSION.SDK_INT >= 29) {
+                window?.isNavigationBarContrastEnforced = false
+                window?.isStatusBarContrastEnforced = false
+            }
             // DialogProperties selects Resize on API 30 and below and Nothing on API 31+.
             // Preserving that choice is required for legacy IME inset delivery.
         }
@@ -182,6 +186,7 @@ public fun AtlasSheetHost(
 
         if (scrimColor != Color.Unspecified && isVisible) {
             Box(Modifier.fillMaxSize()
+                .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout))
                 .drawBehind {
                     val smallestHeight = geometry.availableHeight - geometry.offsets.getValue(geometry.smallest)
                     val alpha = ((geometry.availableHeight - state.offsetOrHidden()) / smallestHeight).coerceIn(0f, 1f)

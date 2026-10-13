@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -19,6 +20,36 @@ import org.junit.Test
 
 class SheetMotionTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+
+    @Test fun scrimExcludesSystemBarInsets() {
+        var top = 0
+        var bottom = 0
+        var left = 0
+        var right = 0
+        compose.runOnUiThread { compose.activity.setContent {
+            val density = LocalDensity.current
+            val insets = WindowInsets.systemBars.union(WindowInsets.displayCutout)
+            top = insets.getTop(density)
+            bottom = insets.getBottom(density)
+            left = insets.getLeft(density, androidx.compose.ui.unit.LayoutDirection.Ltr)
+            right = insets.getRight(density, androidx.compose.ui.unit.LayoutDirection.Ltr)
+            Box(Modifier.fillMaxSize().testTag("inset-host")) {
+                AtlasSheet(
+                    state = rememberSheetState(),
+                    detents = listOf(SheetDetent.fraction("expanded", .5f)),
+                    title = "inset test",
+                ) { Spacer(Modifier.height(120.dp)) }
+            }
+        } }
+        compose.waitForIdle()
+        val host = compose.onNodeWithTag("inset-host").fetchSemanticsNode().boundsInRoot
+        val scrim = compose.onNodeWithContentDescription("Dismiss inset test").fetchSemanticsNode().boundsInRoot
+        assertTrue("Device supplies a system-bar inset", top > 0 || bottom > 0)
+        assertEquals(host.top + top, scrim.top, 1f)
+        assertEquals(host.bottom - bottom, scrim.bottom, 1f)
+        assertEquals(host.left + left, scrim.left, 1f)
+        assertEquals(host.right - right, scrim.right, 1f)
+    }
 
     @Test fun mountedRootAnimatesAndReopensWithoutRecreatingContent() {
         lateinit var state: SheetState

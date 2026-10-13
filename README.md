@@ -158,11 +158,39 @@ if the sheet/scrim should cover the existing screen. Configure edge-to-edge on t
 and avoid applying IME/navigation padding twice. The host owns sheet Back handling while
 visible; your navigation owner handles removing the Fragment after `onDismissed`.
 Activity/Fragment transitions should not also slide the same view vertically; choose one
-owner for that motion. The library has no Fragment dependency.
+owner for that motion. The core composables also work in ordinary Fragments; the DialogFragment adapter below owns animated `dismiss()`.
 
-The sample's **Fragment root example** runs a real `FragmentActivity`, overlay container,
-and `RootSheetFragment` with view-lifecycle disposal. `FragmentSheetTest` verifies that exit
-removes the Fragment, disposes its composition, and allows opening a fresh Fragment.
+For a `DialogFragment` with a close button that calls `dismiss()` directly, extend
+`AtlasSheetDialogFragment`. It delays Fragment removal until the Compose exit finishes:
+
+```kotlin
+class OrderSheetFragment : AtlasSheetDialogFragment() {
+    @Composable
+    override fun SheetContent(state: SheetState) {
+        YourTheme {
+            AtlasSheet(
+                state = state,
+                detents = listOf(SheetDetent.content(), SheetDetent.expanded()),
+                footer = { Button(onClick = { dismiss() }) { Text("Close") } },
+            ) { OrderDetails() }
+        }
+    }
+}
+// Open from your Fragment/Activity:
+OrderSheetFragment().show(supportFragmentManager, "order-sheet")
+```
+
+The adapter handles `dismiss()` and `dismissAllowingStateLoss()`, plus sheet Back,
+scrim and drag dismissal. `dismissNow()` remains synchronous and skips animation.
+Always pass the supplied state to `AtlasSheet`; use `AtlasSheet`, rather than a nested
+`AtlasModalSheet`. An ordinary Fragment or DialogFragment cannot animate after its
+view is removed: call `state.hide()` first and remove it from `onDismissed`, or use
+this adapter. The sample's Fragment example calls `dismiss()` directly, and its
+regression test checks an intermediate exit frame before composition disposal.
+
+The scrim covers the app content inside system-bar and display-cutout insets; it does
+not tint status/navigation bars. Dialog hosts disable window dimming and automatic
+bar contrast overlays. The adapter preserves the Activity's light/dark bar icons.
 
 `AtlasModalSheet` remains available for callers who need Dialog-level focus/input isolation.
 Its legacy lifecycle still expects removal after `onDismissRequest`; choose `AtlasSheet` for

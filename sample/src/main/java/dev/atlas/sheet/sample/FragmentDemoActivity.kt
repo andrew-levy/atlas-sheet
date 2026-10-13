@@ -1,9 +1,6 @@
 package dev.atlas.sheet.sample
 
 import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
@@ -14,10 +11,8 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import dev.atlas.sheet.*
-import kotlinx.coroutines.launch
 
 class FragmentDemoActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -30,11 +25,10 @@ class FragmentDemoActivity : FragmentActivity() {
                 MaterialTheme {
                     Column(Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp)) {
                         Text("Fragment root sheet", style = MaterialTheme.typography.headlineMedium)
-                        Text("The ComposeView is the fragment view. No Dialog and no external visibility if.")
+                        Text("Call dismiss() directly; the adapter waits for the sheet exit.")
                         Button(onClick = {
                             if (supportFragmentManager.findFragmentByTag("sheet") == null) {
-                                supportFragmentManager.beginTransaction()
-                                    .add(R.id.fragment_sheet_container, RootSheetFragment(), "sheet").commit()
+                                RootSheetFragment().show(supportFragmentManager, "sheet")
                             }
                         }, modifier = Modifier.testTag("open-fragment")) { Text("Open fragment sheet") }
                     }
@@ -47,35 +41,30 @@ class FragmentDemoActivity : FragmentActivity() {
     }
 }
 
-class RootSheetFragment : Fragment() {
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View =
-        ComposeView(requireContext()).apply {
-            id = R.id.fragment_sheet_content
-            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
-            setContent {
-                MaterialTheme {
-                    val state = rememberSheetState(initialDetent = "medium")
-                    val scope = rememberCoroutineScope()
-                    var text by remember { mutableStateOf("") }
-                    AtlasSheet(
-                        state = state,
-                        detents = listOf(SheetDetent.fraction("medium", .6f), SheetDetent.expanded()),
-                        title = "Fragment sheet",
-                        onDismissed = {
-                            parentFragmentManager.beginTransaction().remove(this@RootSheetFragment).commit()
-                        },
-                        header = { Text("Fragment sheet", Modifier.padding(24.dp).testTag("fragment-header")) },
-                        footer = {
-                            Button(onClick = { scope.launch { state.hide() } },
-                                modifier = Modifier.fillMaxWidth().padding(16.dp).testTag("close-fragment")) {
-                                Text("Close fragment")
-                            }
-                        },
-                    ) {
-                        OutlinedTextField(text, { text = it }, label = { Text("Keyboard-aware input") }, modifier = Modifier.padding(24.dp))
-                        repeat(20) { Text("Fragment item $it", Modifier.padding(24.dp)) }
+class RootSheetFragment : AtlasSheetDialogFragment() {
+    override val initialDetent = "medium"
+    internal var observedState: SheetState? = null
+
+    @Composable
+    override fun SheetContent(state: SheetState) {
+        SideEffect { observedState = state }
+        MaterialTheme {
+            var text by remember { mutableStateOf("") }
+            AtlasSheet(
+                state = state,
+                detents = listOf(SheetDetent.fraction("medium", .6f), SheetDetent.expanded()),
+                title = "Fragment sheet",
+                header = { Text("Fragment sheet", Modifier.padding(24.dp).testTag("fragment-header")) },
+                footer = {
+                    Button(onClick = { dismiss() },
+                        modifier = Modifier.fillMaxWidth().padding(16.dp).testTag("close-fragment")) {
+                        Text("Close fragment")
                     }
-                }
+                },
+            ) {
+                OutlinedTextField(text, { text = it }, label = { Text("Keyboard-aware input") }, modifier = Modifier.padding(24.dp))
+                repeat(20) { Text("Fragment item $it", Modifier.padding(24.dp)) }
             }
         }
+    }
 }
