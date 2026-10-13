@@ -11,6 +11,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import dev.atlas.sheet.*
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import org.junit.Assert.*
 import org.junit.Rule
@@ -60,6 +61,35 @@ class SheetMotionTest {
         assertEquals(1, dismissed)
         assertEquals("medium", state.currentDetent)
         assertEquals("Body remains mounted across hide/show", 1, compositions)
+    }
+
+    @Test fun interruptedEntryDoesNotDismissAPartiallyVisibleRoot() {
+        lateinit var state: SheetState
+        lateinit var scope: CoroutineScope
+        lateinit var entry: Job
+        var dismissed = 0
+        compose.runOnUiThread { compose.activity.setContent {
+            state = rememberSheetState("medium", tween(320), initiallyVisible = false)
+            scope = rememberCoroutineScope()
+            AtlasSheet(state, listOf(SheetDetent.fraction("medium", .6f)), onDismissed = { dismissed++ }) {
+                Spacer(Modifier.height(120.dp))
+            }
+        } }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        compose.runOnUiThread { entry = scope.launch { state.show() } }
+        compose.mainClock.advanceTimeBy(128)
+        compose.waitForIdle()
+        assertTrue(state.progress > 0f)
+        compose.runOnUiThread { entry.cancel() }
+        compose.mainClock.advanceTimeByFrame()
+        compose.waitForIdle()
+        assertEquals("Cancellation isn't dismissal while pixels are visible", 0, dismissed)
+        compose.runOnUiThread { scope.launch { state.hide() } }
+        compose.mainClock.advanceTimeBy(600)
+        compose.waitForIdle()
+        assertEquals(0f, state.progress, .001f)
+        assertEquals(1, dismissed)
     }
 
     @Test fun liveContentFitResizesAcrossIntermediateFrames() {
