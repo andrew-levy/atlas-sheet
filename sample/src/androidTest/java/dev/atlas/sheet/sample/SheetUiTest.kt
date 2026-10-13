@@ -61,18 +61,29 @@ class SheetUiTest {
     }
     @Test fun composerSendsMessagesAndRemainsVisibleWithIme() {
         open("Chat")
-        val initialFooterBottom = compose.onNodeWithTag("footer").fetchSemanticsNode().boundsInWindow.bottom
-        compose.onNodeWithTag("composer").performClick().performTextInput("Hello Atlas")
-        compose.waitForIdle()
-        compose.waitUntil(20000) {
-            compose.onNodeWithTag("footer").fetchSemanticsNode().boundsInWindow.bottom < initialFooterBottom - 100f
+        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+        // Dialog attachment/native layout is asynchronous; node existence alone is too early.
+        compose.waitUntil(10000) {
+            val bounds = compose.onNodeWithTag("footer").fetchSemanticsNode().boundsInWindow
+            bounds.height > 0f && bounds.bottom > device.displayHeight * .85f
         }
+        val initialFooterBottom = compose.onNodeWithTag("footer").fetchSemanticsNode().boundsInWindow.bottom
+        compose.onNodeWithTag("composer").performClick()
+        try {
+            compose.waitUntil(20000) {
+                compose.onNodeWithTag("footer").fetchSemanticsNode().boundsInWindow.bottom < initialFooterBottom - 100f
+            }
+        } catch (failure: Throwable) {
+            val now = compose.onNodeWithTag("footer").fetchSemanticsNode().boundsInWindow
+            throw AssertionError("Keyboard movement: initial=$initialFooterBottom now=$now display=${device.displayHeight}", failure)
+        }
+        compose.onNodeWithTag("composer").performTextInput("Hello Atlas")
+        compose.waitForIdle()
         compose.waitUntil(20000) {
             compose.onNodeWithTag("detent-expanded").fetchSemanticsNode().config[SemanticsProperties.Selected]
         }
         compose.onNodeWithTag("detent-expanded").assertIsSelected()
         compose.onNodeWithTag("footer").assertIsDisplayed()
-        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
         val footerBottom = compose.onNodeWithTag("footer").fetchSemanticsNode().boundsInWindow.bottom
         assertTrue(footerBottom < device.displayHeight)
         compose.onNodeWithTag("send").performClick()
