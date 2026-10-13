@@ -15,8 +15,9 @@ panels over interactive content.
 
 These are recordings of the Android sample, driven by the included instrumentation tests.
 Click the video link for the full MP4; GIFs give GitHub an inline preview.
-Captured on an API 35 Pixel 4 emulator (1080 × 2280), with startup screens trimmed
-and H.264 MP4s optimized for streaming. These are real sample recordings, not frame-time benchmarks.
+Captured on an API 35 Pixel 4 emulator (1080 × 2280) one Compose frame at a time, so sheet
+motion plays at its real speed; H.264 MP4s are optimized for streaming. These are real sample
+screenshots, not frame-time benchmarks.
 
 | Scenario | Demonstrates | Recording |
 | --- | --- | --- |
@@ -162,10 +163,11 @@ state's animation spec (a damped spring by default). Dragging follows the finger
 IME viewport changes follow Android's insets rather than adding a second keyboard animation.
 Use `animationSpec = tween(320)` or another `AnimationSpec<Float>` to customize motion.
 
-The original gallery recordings use Compose's auto-advancing test clock, which can drain
-animations between recorded frames. They also include deliberate test pauses and are **not
-open-latency measurements**. The updated recorder manually advances one Compose frame per
-wall-clock frame so motion is visible. Recording the updated clips is part of verification.
+The gallery clips are assembled from full-screen screenshots: the recording test advances the
+paused Compose clock by one 32 ms output frame, waits for it to reach the display, and captures it.
+Compose motion therefore keeps its real timing regardless of emulator speed, but the clips are
+**not open-latency or frame-time measurements**. The keyboard animates on the device clock and can
+appear abruptly in them.
 The device workflow keeps system animations enabled and includes intermediate-frame tests.
 
 ## Detents
@@ -297,8 +299,9 @@ python3 scripts/record-demos.py chat
 ```
 
 The script builds and installs the sample and its test APK, enables software IME with a hardware
-keyboard, captures Android `screenrecord`, runs one test per scenario, and generates GIF previews.
-Recording tests use intentional pauses for readability and are excluded from normal CI.
+keyboard, runs one test per scenario, and assembles each test's per-frame screenshots into a 30 fps
+MP4 and a GIF preview. Recording tests are excluded from normal CI; run the workflow manually with
+`record_demos`, or push a commit whose message contains `[record-demos]`.
 
 ## Contributing and license
 
