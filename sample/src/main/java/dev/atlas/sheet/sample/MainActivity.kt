@@ -1,6 +1,8 @@
 package dev.atlas.sheet.sample
 
 import android.os.Bundle
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -49,6 +51,7 @@ enum class Demo(val label: String, val subtitle: String) {
 
 @Composable
 private fun Gallery() {
+    val context = LocalContext.current
     var selected by rememberSaveable { mutableStateOf<Demo?>(null) }
     Box(Modifier.fillMaxSize().background(Paper)) {
         LazyColumn(Modifier.fillMaxSize().safeDrawingPadding().testTag("gallery"), contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -70,6 +73,11 @@ private fun Gallery() {
                         }
                         Text("↗", color = Accent, style = MaterialTheme.typography.titleLarge)
                     }
+                }
+            }
+            item {
+                Button(onClick = { context.startActivity(Intent(context, FragmentDemoActivity::class.java)) }) {
+                    Text("Fragment root example")
                 }
             }
             item { Text("0.1.0 • Android 24+ • Foundation powered", color = Color(0xFF68728A), style = MaterialTheme.typography.labelSmall) }
