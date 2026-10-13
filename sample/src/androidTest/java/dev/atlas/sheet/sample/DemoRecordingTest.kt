@@ -124,6 +124,14 @@ class DemoRecordingTest {
         compose.onNodeWithTag("detent-peek").performClick(); pause()
         compose.onNodeWithTag("close").performClick(); pause()
     }
+    @Test fun heavyContent() {
+        open("Heavy")
+        compose.waitUntil(30_000) { compose.onAllNodesWithTag("body-list").fetchSemanticsNodes().isNotEmpty() }
+        pause()
+        compose.onNodeWithTag("body-list").performTouchInput { swipeDown() }; pause()
+        compose.onNodeWithTag("detent-expanded").performClick(); pause()
+        compose.onNodeWithTag("close").performClick(); pause()
+    }
     @Test fun protectedFlow() {
         open("Locked")
         UiDevice.getInstance(instrumentation).pressBack(); pause()
