@@ -91,43 +91,82 @@ Or run `./gradlew :atlas-sheet:publishToMavenLocal` and use
 `implementation("dev.atlas:atlas-sheet:0.1.0")` with `mavenLocal()` in a local build.
 The coordinate is **not published to Maven Central**.
 
-## First sheet
+## Root sheet — including Fragments
+
+Keep `AtlasSheet` mounted. It opens when mounted by default, animates its own exit,
+and can reopen through state without an external visibility `if`.
 
 ```kotlin
-var open by rememberSaveable { mutableStateOf(false) }
 val state = rememberSheetState(initialDetent = "medium")
-val detents = remember {
-    listOf(
-        SheetDetent.fixed("peek", 260.dp),
-        SheetDetent.fraction("medium", 0.6f),
-        SheetDetent.expanded(),
-    )
+val scope = rememberCoroutineScope()
+AtlasSheet(
+    state = state,
+    detents = listOf(SheetDetent.fraction("medium", .6f), SheetDetent.expanded()),
+    onDismissed = { /* navigate back after the exit completes */ },
+    header = { Text("Order details", Modifier.padding(24.dp)) },
+    footer = {
+        Button(onClick = { scope.launch { state.hide() } }) { Text("Done") }
+    },
+) {
+    OrderDetails()
 }
+```
 
-Button(onClick = { open = true }) { Text("Open") }
-if (open) {
-    AtlasModalSheet(
-        state = state,
-        detents = detents,
-        title = "Order details",
-        onDismissRequest = { open = false },
-        header = { Text("Order details", Modifier.padding(24.dp)) },
-        footer = {
-            Button(onClick = { /* submit */ }, Modifier.fillMaxWidth().padding(16.dp)) {
-                Text("Confirm")
-            }
-        },
-    ) {
-        // Scroll mode owns vertical scrolling. Ordinary finite content goes here.
-        repeat(12) { Text("Line $it", Modifier.padding(24.dp)) }
+For an initially hidden host use `rememberSheetState(initiallyVisible = false)`;
+call `scope.launch { state.show() }` or `state.show("medium")` to open it. `hide()`
+keeps the body mounted and clears focus/IME. `onDismissed` runs after the exit
+animation finishes; it does not fire simply because the host starts hidden.
+Saved state preserves the selected detent and hidden/visible state across view recreation.
+
+A Fragment can return this ComposeView directly:
+
+```kotlin
+override fun onCreateView(
+    inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+): View = ComposeView(requireContext()).apply {
+    id = R.id.order_sheet_content // stable view ID for saveable state
+    setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+    setContent {
+        YourTheme {
+            AtlasSheet(
+                detents = listOf(SheetDetent.content(), SheetDetent.expanded()),
+                onDismissed = { /* pop/remove this Fragment using your navigation owner */ },
+                footer = { OrderActions() },
+            ) { OrderDetails() }
+        }
     }
 }
 ```
 
-`onDismissRequest` runs after the exit animation reaches hidden. Keep the modal in composition
-until then. Hoist state above the `if` when you want it to survive content recreation.
-`rememberSaveable` retains a detent ID across Activity/process recreation; it does not retain
-form/chat data for you. Reopening a modal uses the state's current detent when available.
+`AtlasSheet` draws inside the Fragment view rather than opening another Dialog window.
+Its bounds are the parent container's bounds: use a full-window overlay Fragment container
+if the sheet/scrim should cover the existing screen. Configure edge-to-edge on the Activity,
+and avoid applying IME/navigation padding twice. The host owns sheet Back handling while
+visible; your navigation owner handles removing the Fragment after `onDismissed`.
+Activity/Fragment transitions should not also slide the same view vertically; choose one
+owner for that motion. The library has no Fragment dependency.
+
+The sample's **Fragment root example** runs a real `FragmentActivity`, overlay container,
+and `RootSheetFragment` with view-lifecycle disposal. `FragmentSheetTest` verifies that exit
+removes the Fragment, disposes its composition, and allows opening a fresh Fragment.
+
+`AtlasModalSheet` remains available for callers who need Dialog-level focus/input isolation.
+Its legacy lifecycle still expects removal after `onDismissRequest`; choose `AtlasSheet` for
+an always-mounted in-place host. `AtlasSheetHost` remains the low-level persistent primitive.
+
+## Motion and recordings
+
+Entry begins from hidden after the first real chrome/body measurements, preventing a
+one-frame visible flash. Detent transitions, exit and live content-fit resizing use the
+state's animation spec (a damped spring by default). Dragging follows the finger directly;
+IME viewport changes follow Android's insets rather than adding a second keyboard animation.
+Use `animationSpec = tween(320)` or another `AnimationSpec<Float>` to customize motion.
+
+The original gallery recordings use Compose's auto-advancing test clock, which can drain
+animations between recorded frames. They also include deliberate test pauses and are **not
+open-latency measurements**. The updated recorder manually advances one Compose frame per
+wall-clock frame so motion is visible. Recording the updated clips is part of verification.
+The device workflow keeps system animations enabled and includes intermediate-frame tests.
 
 ## Detents
 
