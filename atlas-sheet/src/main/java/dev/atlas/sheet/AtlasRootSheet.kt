@@ -51,7 +51,7 @@ public fun AtlasSheet(
     }
     LaunchedEffect(state) {
         if (state.initiallyVisible) launch { state.enter() }
-        snapshotFlow { state.hasPresented && state.currentDetent == null && !state.isAnimationRunning }
+        snapshotFlow { state.hasPresented && state.currentDetent == null && !state.isVisible && !state.isAnimationRunning }
             .collect { hidden -> if (hidden) dismissed() }
     }
     AtlasSheetHost(
