@@ -1,0 +1,58 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+      ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+      ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+      ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v6
+      - run: chmod +x gradlew
+      - name: Check the tag matches VERSION_NAME
+        run: |
+          version=$(sed -n 's/^VERSION_NAME=//p' gradle.properties)
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match VERSION_NAME=$version in gradle.properties"
+            exit 1
+          fi
+      - name: Test, lint and package
+        run: ./gradlew :atlas-sheet:testDebugUnitTest :atlas-sheet:lintRelease :atlas-sheet:publishToMavenLocal
+      - name: Publish to Maven Central
+        if: env.ORG_GRADLE_PROJECT_mavenCentralUsername != '' && env.ORG_GRADLE_PROJECT_signingInMemoryKey != ''
+        # Uploads a deployment; it is released from the Central Portal (automaticRelease = false).
+        run: ./gradlew :atlas-sheet:publishToMavenCentral --no-configuration-cache
+      - name: Note skipped Maven Central publication
+        if: env.ORG_GRADLE_PROJECT_mavenCentralUsername == '' || env.ORG_GRADLE_PROJECT_signingInMemoryKey == ''
+        run: echo "::warning::Maven Central secrets are not configured; only the GitHub release (and JitPack) will be available."
+      - name: Extract release notes
+        run: |
+          awk -v v="$VERSION" '$0 ~ "^## \\[?"v"\\]?" {found=1; next} found && /^## / {exit} found {print}' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "::error::CHANGELOG.md has no section for $VERSION"
+            exit 1
+          fi
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          dir="$HOME/.m2/repository/$(sed -n 's/^GROUP=//p' gradle.properties | tr . /)/atlas-sheet/$VERSION"
+          gh release create "$GITHUB_REF_NAME" --title "Atlas Sheet $VERSION" --notes-file release-notes.md \
+            "$dir"/atlas-sheet-"$VERSION".aar "$dir"/atlas-sheet-"$VERSION".pom \
+            "$dir"/atlas-sheet-"$VERSION"-sources.jar "$dir"/atlas-sheet-"$VERSION"-javadoc.jar

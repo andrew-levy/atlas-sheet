@@ -1,0 +1,6 @@
+jdk:
+  - openjdk17
+install:
+  # JitPack serves artifacts as com.github.andrew-levy:atlas-sheet:<tag>.
+  - chmod +x gradlew
+  - ./gradlew :atlas-sheet:publishToMavenLocal -PGROUP=$GROUP -PVERSION_NAME=$VERSION
