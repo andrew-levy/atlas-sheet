@@ -82,7 +82,7 @@ public fun AtlasModalSheet(
         }
         LaunchedEffect(state) {
             try { state.enter() } catch (interrupted: CancellationException) { coroutineContext.ensureActive() }
-            snapshotFlow { state.anchored.settledValue }.first { it == HiddenId }
+            snapshotFlow { state.currentDetent == null && !state.isVisible && !state.isAnimationRunning }.first { it }
             dismissCallback()
         }
         AtlasSheetHost(

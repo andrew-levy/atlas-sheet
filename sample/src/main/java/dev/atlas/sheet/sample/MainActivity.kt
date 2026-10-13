@@ -1,6 +1,8 @@
 package dev.atlas.sheet.sample
 
 import android.os.Bundle
+import android.os.Process
+import android.os.SystemClock
 import android.content.Intent
 import androidx.compose.ui.platform.LocalContext
 import androidx.activity.ComponentActivity
@@ -14,6 +16,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.draw.alpha
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,7 +25,17 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.atlas.sheet.*
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.security.MessageDigest
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
+import kotlinx.coroutines.asCoroutineDispatcher
 
 private val Ink = Color(0xFF172033)
 private val Accent = Color(0xFF6554E8)
@@ -32,12 +45,24 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        val autoOpen = intent.getStringExtra(EXTRA_DEMO)?.let { Demo.valueOf(it) }
         setContent {
             MaterialTheme(colorScheme = lightColorScheme(primary = Accent, background = Paper, surface = Color.White, onSurface = Ink)) {
-                Gallery()
+                Gallery(autoOpen)
             }
         }
     }
+    companion object {
+        /** Demo name to open shortly after launch; used by real-clock timing tests. */
+        const val EXTRA_DEMO = "demo"
+    }
+}
+
+/** Real-clock opening timings, from the open request to the sheet settling at its detent. */
+data class OpenTiming(val firstMotionMillis: Long, val settledMillis: Long, val longestFrameMillis: Long, val frames: Int)
+
+object OpenTimings {
+    val results = ConcurrentHashMap<String, OpenTiming>()
 }
 
 enum class Demo(val label: String, val subtitle: String) {
@@ -47,12 +72,19 @@ enum class Demo(val label: String, val subtitle: String) {
     Form("Sticky actions", "Long form • keyboard resize • pinned CTA"),
     Persistent("Persistent", "Inline sheet • interactive background"),
     Locked("Protected flow", "Disable user dismissal • explicit close"),
+    Heavy("Heavy content", "3,000 messages • CPU parsing on every core • slow database"),
 }
 
 @Composable
-private fun Gallery() {
+private fun Gallery(autoOpen: Demo?) {
     val context = LocalContext.current
     var selected by rememberSaveable { mutableStateOf<Demo?>(null) }
+    var openedAt by remember { mutableLongStateOf(0L) }
+    if (autoOpen != null) LaunchedEffect(autoOpen) {
+        delay(800)
+        openedAt = SystemClock.uptimeMillis()
+        selected = autoOpen
+    }
     Box(Modifier.fillMaxSize().background(Paper)) {
         LazyColumn(Modifier.fillMaxSize().safeDrawingPadding().testTag("gallery"), contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
@@ -64,7 +96,7 @@ private fun Gallery() {
                 Spacer(Modifier.height(14.dp))
             }
             items(Demo.entries) { demo ->
-                Card(Modifier.fillMaxWidth().testTag("open-${demo.name}").clickable { selected = demo }, colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                Card(Modifier.fillMaxWidth().testTag("open-${demo.name}").clickable { openedAt = SystemClock.uptimeMillis(); selected = demo }, colors = CardDefaults.cardColors(containerColor = Color.White)) {
                     Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(demo.label, fontWeight = FontWeight.SemiBold, color = Ink)
@@ -82,12 +114,12 @@ private fun Gallery() {
             }
             item { Text("0.1.0 • Android 24+ • Foundation powered", color = Color(0xFF68728A), style = MaterialTheme.typography.labelSmall) }
         }
-        selected?.let { demo -> key(demo) { DemoSheet(demo) { selected = null } } }
+        selected?.let { demo -> key(demo) { DemoSheet(demo, openedAt) { selected = null } } }
     }
 }
 
 @Composable
-private fun DemoSheet(demo: Demo, close: () -> Unit) {
+private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
     val scope = rememberCoroutineScope()
     val initial = if (demo == Demo.Fit) "content" else if (demo == Demo.Persistent) "peek" else "medium"
     val state = rememberSheetState(initialDetent = initial)
@@ -97,7 +129,7 @@ private fun DemoSheet(demo: Demo, close: () -> Unit) {
     }
     val behavior = remember(demo) {
         SheetBehavior(
-            imePolicy = if (demo == Demo.Chat) SheetImePolicy.Expand else SheetImePolicy.Resize,
+            imePolicy = if (demo == Demo.Chat || demo == Demo.Heavy) SheetImePolicy.Expand else SheetImePolicy.Resize,
             dismissOnDrag = demo != Demo.Locked,
             dismissOnScrim = demo != Demo.Locked,
             dismissOnBack = demo != Demo.Locked,
@@ -105,13 +137,17 @@ private fun DemoSheet(demo: Demo, close: () -> Unit) {
     }
     var message by rememberSaveable { mutableStateOf("") }
     var extra by rememberSaveable { mutableStateOf(false) }
+    var heavyThread by remember { mutableStateOf<List<HeavyMessage>?>(null) }
+    if (demo == Demo.Heavy) LaunchedEffect(Unit) { heavyThread = loadHeavyThread() }
+    LaunchedEffect(state) { recordOpenTiming(demo, state, openedAt) }
     val messages = remember { mutableStateListOf("Sounds good. Let's ship it.", "The composer stays visible at every detent.", "Try scrolling, then opening the keyboard.", "Welcome to Atlas Sheet.") }
     val header: @Composable () -> Unit = {
         Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).testTag("sheet-header")) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(demo.label, modifier = Modifier.testTag("sheet-title"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Text(state.currentDetent ?: "Opening", color = Accent, style = MaterialTheme.typography.labelMedium)
+                    val status = if (demo == Demo.Heavy) heavyThread?.let { "%,d messages".format(it.size) } ?: "Loading thread…" else null
+                    Text(listOfNotNull(state.currentDetent ?: "Opening", status).joinToString(" • "), color = Accent, style = MaterialTheme.typography.labelMedium, modifier = Modifier.testTag("sheet-status"))
                 }
                 TextButton(onClick = { scope.launch { state.hide() } }, modifier = Modifier.testTag("close")) { Text("Close") }
             }
@@ -127,7 +163,7 @@ private fun DemoSheet(demo: Demo, close: () -> Unit) {
     }
     val footer: @Composable () -> Unit = {
         Surface(shadowElevation = 6.dp) {
-            if (demo == Demo.Chat) {
+            if (demo == Demo.Chat || demo == Demo.Heavy) {
                 Row(Modifier.fillMaxWidth().padding(16.dp).testTag("footer"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(message, { message = it }, placeholder = { Text("Message the team") }, modifier = Modifier.weight(1f).testTag("composer"), maxLines = 3, shape = RoundedCornerShape(24.dp))
                     Button(onClick = { if (message.isNotBlank()) { messages.add(0, message); message = "" } }, modifier = Modifier.testTag("send")) { Text("Send") }
@@ -145,6 +181,7 @@ private fun DemoSheet(demo: Demo, close: () -> Unit) {
     }
     val body: @Composable ColumnScope.() -> Unit = {
         when (demo) {
+            Demo.Heavy -> HeavyThreadBody(heavyThread)
             Demo.Chat -> LazyColumn(Modifier.fillMaxSize().testTag("body-list"), reverseLayout = true, contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(messages.size + 35, key = { it }) { i ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (i % 2 == 0) Arrangement.End else Arrangement.Start) {
@@ -181,4 +218,88 @@ private fun DemoSheet(demo: Demo, close: () -> Unit) {
     } else {
         AtlasModalSheet(state, detents, close, behavior = behavior, bodyMode = mode, title = demo.label, header = header, footer = footer, content = body)
     }
+}
+
+class HeavyMessage(val author: String, val text: String, val digest: String)
+
+object HeavyLoad {
+    /**
+     * Normal-priority workers on every core compete with the UI and render threads and delay the
+     * sheet on small devices; background priority leaves frame production first in line.
+     */
+    @Volatile var backgroundPriority = true
+    private val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(2)
+    val background = Executors.newFixedThreadPool(cores) { work ->
+        Thread({ Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND); work.run() }, "heavy-load")
+    }.asCoroutineDispatcher()
+    val dispatcher get() = if (backgroundPriority) background else Dispatchers.Default
+}
+
+/**
+ * Simulates opening a large conversation: a slow database read plus CPU-heavy decoding of every
+ * message, spread over all cores, all while the sheet is presenting.
+ */
+private suspend fun loadHeavyThread(count: Int = 3000, rounds: Int = 400): List<HeavyMessage> = withContext(HeavyLoad.dispatcher) {
+    coroutineScope {
+        val database = async { delay(900) }
+        val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(2)
+        val decoded = (0 until cores).map { core ->
+            async {
+                val sha = MessageDigest.getInstance("SHA-256")
+                (core until count step cores).map { i ->
+                    var bytes = "message-$i".toByteArray()
+                    repeat(rounds) { bytes = sha.digest(bytes) }
+                    i to HeavyMessage(
+                        author = if (i % 3 == 0) "You" else listOf("Maya", "Jon", "Priya")[i % 3],
+                        text = "Message ${i + 1}: decoded ${rounds} hash rounds for a long synced thread.",
+                        digest = bytes.take(4).joinToString("") { "%02x".format(it) },
+                    )
+                }
+            }
+        }.awaitAll().flatten().sortedBy { it.first }.map { it.second }
+        database.await()
+        decoded
+    }
+}
+
+@Composable
+private fun HeavyThreadBody(thread: List<HeavyMessage>?) {
+    if (thread == null) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 12.dp).testTag("heavy-loading"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            repeat(8) { i ->
+                Box(Modifier.fillMaxWidth(if (i % 2 == 0) .7f else .55f).height(52.dp).align(if (i % 2 == 0) Alignment.End else Alignment.Start).alpha(.6f).background(Color(0xFFE3E6F0), RoundedCornerShape(18.dp)))
+            }
+        }
+        return
+    }
+    LazyColumn(Modifier.fillMaxSize().testTag("body-list"), reverseLayout = true, contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        items(thread.size, key = { it }) { i ->
+            val message = thread[thread.size - 1 - i]
+            val mine = message.author == "You"
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
+                Text(message.text, Modifier.widthIn(max = 280.dp).background(if (mine) Accent else Paper, RoundedCornerShape(18.dp)).padding(16.dp), color = if (mine) Color.White else Ink)
+                Text("${message.author} • ${message.digest}", style = MaterialTheme.typography.labelSmall, color = Color(0xFF68728A))
+            }
+        }
+    }
+}
+
+/** Samples every real frame from the open request until the sheet settles. */
+private suspend fun recordOpenTiming(demo: Demo, state: dev.atlas.sheet.SheetState, openedAt: Long) {
+    if (openedAt == 0L) return
+    var firstMotion = -1L
+    var previous = SystemClock.uptimeMillis()
+    var longest = 0L
+    var frames = 0
+    while (true) {
+        withFrameMillis { }
+        val now = SystemClock.uptimeMillis()
+        if (state.progress > 0.01f) {
+            if (firstMotion < 0) firstMotion = now else longest = maxOf(longest, now - previous)
+            frames++
+        }
+        previous = now
+        if (firstMotion >= 0 && state.currentDetent != null && !state.isAnimationRunning) break
+    }
+    OpenTimings.results[demo.name] = OpenTiming(firstMotion - openedAt, previous - openedAt, longest, frames)
 }

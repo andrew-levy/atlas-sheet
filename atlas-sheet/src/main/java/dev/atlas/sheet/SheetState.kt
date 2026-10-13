@@ -108,7 +108,7 @@ public class SheetState internal constructor(
     /** Programmatic dismissal remains available when drag, scrim or Back dismissal is disabled. */
     public suspend fun hide() {
         ready()
-        if (currentDetent == null && !isAnimationRunning) return
+        if (currentDetent == null && !isVisible && !isAnimationRunning) return
         (targetDetent ?: currentDetent)?.let { lastVisibleDetent = it }
         programmaticHide = true
         updateAnchors()
@@ -146,7 +146,11 @@ public fun rememberSheetState(
     initiallyVisible: Boolean = true,
 ): SheetState {
     val saver = Saver<SheetState, List<String>>(
-        save = { listOf(it.currentDetent ?: it.lastVisibleDetent, (it.currentDetent != null).toString()) },
+        save = {
+            val visibleId = if (it.isAnimationRunning) it.targetDetent
+                else it.currentDetent ?: it.lastVisibleDetent.takeIf { _ -> it.isVisible }
+            listOf(visibleId ?: it.lastVisibleDetent, (visibleId != null).toString())
+        },
         restore = { SheetState(it[0], animationSpec, it[1].toBoolean()) },
     )
     return rememberSaveable(saver = saver) { SheetState(initialDetent, animationSpec, initiallyVisible) }
