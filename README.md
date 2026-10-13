@@ -85,16 +85,7 @@ these are the latest releases. Test dependency upgrades in your own app before r
 
 Atlas Sheet requires Android 24+ and Compose (tested with BOM `2025.06.01`).
 
-From Maven Central:
-
-```kotlin
-// app/build.gradle.kts
-dependencies {
-    implementation("io.github.andrew-levy:atlas-sheet:0.1.0")
-}
-```
-
-Or from [JitPack](https://jitpack.io/#andrew-levy/atlas-sheet), using the release tag:
+Add [JitPack](https://jitpack.io/#andrew-levy/atlas-sheet) and depend on the release tag:
 
 ```kotlin
 // settings.gradle.kts
@@ -107,6 +98,8 @@ dependencies {
     implementation("com.github.andrew-levy:atlas-sheet:v0.1.0")
 }
 ```
+
+Maven Central publication (`io.github.andrew-levy:atlas-sheet`) is planned but not yet available.
 
 To build from source instead, include the `atlas-sheet` module in your build, or run
 `./gradlew :atlas-sheet:publishToMavenLocal` and depend on
