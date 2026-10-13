@@ -9,6 +9,19 @@ class SheetStateTest {
     private fun state(dismiss: Boolean = true): SheetState = SheetState("medium", snap()).also {
         it.updateGeometry(SheetGeometry.resolve(1000f, 100f, listOf("medium" to 600f, "full" to 1000f)), dismiss)
     }
+    @Test fun managedRootInitializesHiddenBeforeItsFirstFrame() {
+        val state = SheetState("medium", snap())
+        state.preparePresentation()
+        state.updateGeometry(SheetGeometry.resolve(1000f, 100f, listOf("medium" to 600f)), true)
+        assertNull(state.currentDetent)
+        assertEquals(0f, state.progress, 0f)
+    }
+    @Test fun explicitlyHiddenStateDoesNotOpenDuringMeasurement() {
+        val state = SheetState("medium", snap(), initiallyVisible = false)
+        state.updateGeometry(SheetGeometry.resolve(1000f, 100f, listOf("medium" to 600f)), true)
+        assertNull(state.currentDetent)
+        assertEquals(0f, state.progress, 0f)
+    }
     @Test fun initialAnchorIsFiniteAndSelected() {
         val state = state()
         assertEquals("medium", state.currentDetent)

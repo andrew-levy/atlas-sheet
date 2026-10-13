@@ -59,10 +59,10 @@ jobs:
           arch: x86_64
           target: default
           profile: pixel_4
-          disable-animations: true
+          disable-animations: false
           script: |
             adb shell settings put secure show_ime_with_hard_keyboard 1
-            ./gradlew :sample:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=dev.atlas.sheet.sample.SheetUiTest
+            ./gradlew :sample:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=dev.atlas.sheet.sample.SheetUiTest,dev.atlas.sheet.sample.SheetMotionTest,dev.atlas.sheet.sample.FragmentSheetTest
       - uses: actions/upload-artifact@v4
         if: always()
         with:

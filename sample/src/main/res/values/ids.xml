@@ -1,0 +1,5 @@
+<resources>
+    <item name="fragment_demo_content" type="id" />
+    <item name="fragment_sheet_container" type="id" />
+    <item name="fragment_sheet_content" type="id" />
+</resources>

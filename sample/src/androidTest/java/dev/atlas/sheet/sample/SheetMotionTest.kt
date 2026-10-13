@@ -1,0 +1,88 @@
+package dev.atlas.sheet.sample
+
+import androidx.activity.compose.setContent
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.test.*
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import dev.atlas.sheet.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import org.junit.Assert.*
+import org.junit.Rule
+import org.junit.Test
+
+class SheetMotionTest {
+    @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+
+    @Test fun mountedRootAnimatesAndReopensWithoutRecreatingContent() {
+        lateinit var state: SheetState
+        lateinit var scope: CoroutineScope
+        var dismissed = 0
+        var compositions = 0
+        compose.runOnUiThread { compose.activity.setContent {
+            state = rememberSheetState("medium", tween(320), initiallyVisible = false)
+            scope = rememberCoroutineScope()
+            AtlasSheet(state, listOf(SheetDetent.fraction("medium", .6f)), onDismissed = { dismissed++ }) {
+                DisposableEffect(Unit) { compositions++; onDispose {} }
+                Spacer(Modifier.height(120.dp))
+            }
+        } }
+        compose.waitForIdle()
+        assertEquals(0f, state.progress, .001f)
+        compose.mainClock.autoAdvance = false
+        compose.runOnUiThread { scope.launch { state.show() } }
+        compose.mainClock.advanceTimeBy(80)
+        compose.waitForIdle()
+        val early = state.progress
+        assertTrue("Entry must have intermediate frames", early > 0f && early < .6f)
+        compose.mainClock.advanceTimeBy(120)
+        compose.waitForIdle()
+        assertTrue(state.progress > early && state.progress < .6f)
+        compose.mainClock.advanceTimeBy(600)
+        compose.waitForIdle()
+        assertEquals(.6f, state.progress, .01f)
+        compose.runOnUiThread { scope.launch { state.hide() } }
+        compose.mainClock.advanceTimeBy(160)
+        compose.waitForIdle()
+        assertEquals("Dismiss callback waits for the exit", 0, dismissed)
+        assertTrue(state.progress > 0f && state.progress < .6f)
+        compose.mainClock.advanceTimeBy(600)
+        compose.waitForIdle()
+        assertEquals(1, dismissed)
+        compose.runOnUiThread { scope.launch { state.hide(); state.show() } }
+        compose.mainClock.advanceTimeBy(600)
+        compose.waitForIdle()
+        assertEquals(1, dismissed)
+        assertEquals("medium", state.currentDetent)
+        assertEquals("Body remains mounted across hide/show", 1, compositions)
+    }
+
+    @Test fun liveContentFitResizesAcrossIntermediateFrames() {
+        lateinit var state: SheetState
+        var extra by mutableStateOf(false)
+        compose.runOnUiThread { compose.activity.setContent {
+            state = rememberSheetState("content", tween(320))
+            AtlasSheet(state, listOf(SheetDetent.content()),
+                header = { Spacer(Modifier.fillMaxWidth().height(48.dp).testTag("motion-header")) }) {
+                Spacer(Modifier.height(if (extra) 320.dp else 80.dp))
+            }
+        } }
+        compose.waitForIdle()
+        val before = compose.onNodeWithTag("motion-header").getUnclippedBoundsInRoot().top
+        compose.mainClock.autoAdvance = false
+        compose.runOnUiThread { extra = true }
+        compose.mainClock.advanceTimeBy(128)
+        compose.waitForIdle()
+        val middle = compose.onNodeWithTag("motion-header").getUnclippedBoundsInRoot().top
+        compose.mainClock.advanceTimeBy(600)
+        compose.waitForIdle()
+        val after = compose.onNodeWithTag("motion-header").getUnclippedBoundsInRoot().top
+        assertTrue("Resize is gradual", middle < before && middle > after)
+        assertTrue(kotlin.math.abs((before - after).value - 240f) < 1f)
+    }
+}

@@ -2,6 +2,15 @@ package dev.atlas.sheet.sample
 
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.dp
+import dev.atlas.sheet.*
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiDevice
 import org.junit.Assert.*
@@ -11,7 +20,8 @@ import org.junit.Test
 class SheetUiTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
     private fun open(name: String) {
-        compose.onNodeWithTag("open-$name").performScrollTo().performClick()
+        compose.onNodeWithTag("gallery").performScrollToNode(hasTestTag("open-$name"))
+        compose.onNodeWithTag("open-$name").performClick()
         compose.waitUntil(10000) { compose.onAllNodesWithTag("footer").fetchSemanticsNodes().isNotEmpty() }
         compose.waitForIdle()
     }
@@ -57,6 +67,9 @@ class SheetUiTest {
         compose.waitUntil(20000) {
             compose.onNodeWithTag("footer").fetchSemanticsNode().boundsInWindow.bottom < initialFooterBottom - 100f
         }
+        compose.waitUntil(20000) {
+            compose.onNodeWithTag("detent-expanded").fetchSemanticsNode().config[SemanticsProperties.Selected]
+        }
         compose.onNodeWithTag("detent-expanded").assertIsSelected()
         compose.onNodeWithTag("footer").assertIsDisplayed()
         val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
@@ -66,6 +79,9 @@ class SheetUiTest {
         compose.onNodeWithText("Hello Atlas").assertIsDisplayed()
         device.pressBack()
         compose.waitForIdle()
+        compose.waitUntil(20000) {
+            compose.onNodeWithTag("detent-medium").fetchSemanticsNode().config[SemanticsProperties.Selected]
+        }
         compose.onNodeWithTag("detent-medium").assertIsSelected()
     }
     @Test fun scrollingHandsOffToSheetAndCanDismiss() {
@@ -76,5 +92,24 @@ class SheetUiTest {
         compose.onNodeWithTag("close").performClick()
         compose.waitForIdle()
         compose.onNodeWithTag("open-Detents").assertIsDisplayed()
+    }
+    @Test fun footerKeepsItsSpaceWhenTheHeaderIsTooTallForTheWindow() {
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                Box(Modifier.fillMaxWidth().height(180.dp)) {
+                    val state = rememberSheetState()
+                    AtlasSheetHost(
+                        state = state,
+                        detents = listOf(SheetDetent.expanded()),
+                        topMargin = 0.dp,
+                        scrimColor = Color.Unspecified,
+                        header = { Spacer(Modifier.height(240.dp)) },
+                        footer = { Box(Modifier.fillMaxWidth().height(56.dp).background(Color.Blue).testTag("small-footer")) },
+                    ) { Spacer(Modifier.height(100.dp)) }
+                }
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("small-footer").assertIsDisplayed().assertHeightIsEqualTo(56.dp)
     }
 }

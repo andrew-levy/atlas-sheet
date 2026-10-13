@@ -1,6 +1,7 @@
 package dev.atlas.sheet
 
 import android.view.WindowManager
+import androidx.compose.animation.core.Animatable
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -60,6 +61,7 @@ public fun AtlasModalSheet(
     footer: @Composable (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    SideEffect { state.preparePresentation() }
     val scope = rememberCoroutineScope()
     val dismissCallback by rememberUpdatedState(onDismissRequest)
     Dialog(
@@ -123,6 +125,19 @@ public fun AtlasSheetHost(
     var footerHeight by remember { mutableIntStateOf(0) }
     var naturalBodyHeight by remember { mutableIntStateOf(0) }
     var viewportHeight by remember { mutableIntStateOf(0) }
+    var headerMeasured by remember { mutableStateOf(false) }
+    var footerMeasured by remember { mutableStateOf(false) }
+    var bodyMeasured by remember { mutableStateOf(false) }
+    val animatedContentHeight = remember { Animatable(0f) }
+    var contentInitialized by remember { mutableStateOf(false) }
+    LaunchedEffect(naturalBodyHeight, bodyMeasured) {
+        if (bodyMeasured) {
+            if (!contentInitialized || !state.hasPresented) {
+                animatedContentHeight.snapTo(naturalBodyHeight.toFloat())
+                contentInitialized = true
+            } else animatedContentHeight.animateTo(naturalBodyHeight.toFloat(), state.animationSpec)
+        }
+    }
     val isVisible by remember(state) { derivedStateOf { state.isVisible } }
     val topInset = maxOf(WindowInsets.systemBars.getTop(density), WindowInsets.displayCutout.getTop(density))
     val navInset = WindowInsets.systemBars.getBottom(density)
@@ -156,12 +171,14 @@ public fun AtlasSheetHost(
         if (availablePx <= 0f) return@Box
         val chrome = headerHeight + footerHeight
         val detentScope = with(density) {
-            SheetDetentScope(availablePx.toDp(), naturalBodyHeight.toDp(), chrome.toDp())
+            SheetDetentScope(availablePx.toDp(), animatedContentHeight.value.toDp(), chrome.toDp())
         }
         val geometry = SheetGeometry.resolve(availablePx, chrome.toFloat(), detents.map { d ->
             d.id to with(density) { d.resolve(detentScope).toPx() }
         })
-        SideEffect { state.updateGeometry(geometry, behavior.dismissOnDrag) }
+        val layoutReady = headerMeasured && footerMeasured &&
+            (bodyMode == SheetBodyMode.Fill || contentInitialized)
+        SideEffect { state.updateGeometry(geometry, behavior.dismissOnDrag, layoutReady) }
 
         if (scrimColor != Color.Unspecified && isVisible) {
             Box(Modifier.fillMaxSize()
@@ -187,6 +204,7 @@ public fun AtlasSheetHost(
                 .shadow(16.dp, shape).background(containerColor, shape)
                 .then(if (behavior.draggable) Modifier.nestedScroll(nested) else Modifier)
                 .semantics {
+                    if (!isVisible) hideFromAccessibility()
                     paneTitle = title
                     isTraversalGroup = true
                     stateDescription = state.currentDetent ?: "Hidden"
@@ -196,7 +214,7 @@ public fun AtlasSheetHost(
                 }, content = {
                 // Foundation only: no Material theme is imposed on consumers.
                 CompositionLocalProvider(LocalSheetContentColor provides contentColor) {
-                    Column(Modifier.fillMaxWidth().onSizeChanged { headerHeight = it.height }
+                    Column(Modifier.fillMaxWidth().onSizeChanged { headerHeight = it.height; headerMeasured = true }
                         .anchoredDraggable(state.anchored, Orientation.Vertical, enabled = behavior.draggable, flingBehavior = fling)) {
                         dragHandle?.invoke()
                         header?.invoke()
@@ -204,12 +222,12 @@ public fun AtlasSheetHost(
                     if (bodyMode == SheetBodyMode.Scroll) {
                         val scroll = rememberScrollState()
                         Box(Modifier.fillMaxWidth().clipToBoundsForSheet().verticalScroll(scroll)) {
-                            Column(Modifier.fillMaxWidth().onSizeChanged { naturalBodyHeight = it.height }, content = content)
+                            Column(Modifier.fillMaxWidth().onSizeChanged { naturalBodyHeight = it.height; bodyMeasured = true }, content = content)
                         }
                     } else {
                         Column(Modifier.fillMaxWidth().clipToBoundsForSheet(), content = content)
                     }
-                    Box(Modifier.fillMaxWidth().onSizeChanged { footerHeight = it.height }) { footer?.invoke() }
+                    Box(Modifier.fillMaxWidth().onSizeChanged { footerHeight = it.height; footerMeasured = true }) { footer?.invoke() }
                 }
             }) { parts, bounds ->
                 // A small window or tall header must not consume a fitting footer's space.
