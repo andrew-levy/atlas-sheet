@@ -2,7 +2,7 @@ plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("maven-publish")
+    id("com.vanniktech.maven.publish")
 }
 android {
     namespace = "dev.atlas.sheet"
@@ -14,7 +14,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    publishing { singleVariant("release") { withSourcesJar() } }
 }
 dependencies {
     api(platform("androidx.compose:compose-bom:2025.06.01"))
@@ -25,20 +24,34 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
 }
-afterEvaluate {
-    publishing {
-        publications {
-            create<MavenPublication>("release") {
-                from(components["release"])
-                groupId = "dev.atlas"
-                artifactId = "atlas-sheet"
-                version = "0.1.0"
-                pom {
-                    name.set("Atlas Sheet")
-                    description.set("Detent-driven Jetpack Compose sheets with sticky chrome and IME policies")
-                    licenses { license { name.set("Apache License, Version 2.0"); url.set("https://www.apache.org/licenses/LICENSE-2.0") } }
-                }
+mavenPublishing {
+    // Coordinates and version come from gradle.properties (GROUP, POM_ARTIFACT_ID, VERSION_NAME).
+    publishToMavenCentral(automaticRelease = false)
+    // Signing is required for Maven Central and skipped when no key is configured (local builds).
+    if (!providers.gradleProperty("signingInMemoryKey").orNull.isNullOrBlank()) signAllPublications()
+    pom {
+        name.set("Atlas Sheet")
+        description.set("Detent-driven Jetpack Compose bottom sheets with sticky chrome, live content fit and IME policies")
+        inceptionYear.set("2026")
+        url.set("https://github.com/andrew-levy/atlas-sheet")
+        licenses {
+            license {
+                name.set("Apache License, Version 2.0")
+                url.set("https://www.apache.org/licenses/LICENSE-2.0")
+                distribution.set("repo")
             }
+        }
+        developers {
+            developer {
+                id.set("andrew-levy")
+                name.set("Andrew Levy")
+                url.set("https://github.com/andrew-levy")
+            }
+        }
+        scm {
+            url.set("https://github.com/andrew-levy/atlas-sheet")
+            connection.set("scm:git:https://github.com/andrew-levy/atlas-sheet.git")
+            developerConnection.set("scm:git:ssh://git@github.com/andrew-levy/atlas-sheet.git")
         }
     }
 }
