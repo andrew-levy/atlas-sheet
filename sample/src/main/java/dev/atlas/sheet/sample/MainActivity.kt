@@ -51,7 +51,7 @@ enum class Demo(val label: String, val subtitle: String) {
 private fun Gallery() {
     var selected by rememberSaveable { mutableStateOf<Demo?>(null) }
     Box(Modifier.fillMaxSize().background(Paper)) {
-        LazyColumn(Modifier.fillMaxSize().safeDrawingPadding(), contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(Modifier.fillMaxSize().safeDrawingPadding().testTag("gallery"), contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
                 Text("ATLAS / COMPOSE", color = Accent, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(14.dp))
