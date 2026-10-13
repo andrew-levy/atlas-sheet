@@ -166,7 +166,12 @@ private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
             if (demo == Demo.Chat || demo == Demo.Heavy) {
                 Row(Modifier.fillMaxWidth().padding(16.dp).testTag("footer"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(message, { message = it }, placeholder = { Text("Message the team") }, modifier = Modifier.weight(1f).testTag("composer"), maxLines = 3, shape = RoundedCornerShape(24.dp))
-                    Button(onClick = { if (message.isNotBlank()) { messages.add(0, message); message = "" } }, modifier = Modifier.testTag("send")) { Text("Send") }
+                    Button(onClick = {
+                        if (message.isNotBlank()) {
+                            if (demo == Demo.Heavy) heavyThread = heavyThread.orEmpty() + HeavyMessage("You", message, "sent") else messages.add(0, message)
+                            message = ""
+                        }
+                    }, modifier = Modifier.testTag("send")) { Text("Send") }
                 }
             } else {
                 Column(Modifier.fillMaxWidth().padding(16.dp).testTag("footer")) {

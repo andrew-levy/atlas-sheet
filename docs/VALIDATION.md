@@ -2,18 +2,20 @@
 
 ## Device suite — October 13, 2026
 
-`SheetUiTest`, `SheetMotionTest` and `FragmentSheetTest` (10 tests) passed on both API 24 and
-API 35 x86_64 Pixel 4 emulators with system animations enabled:
-[run 38390263772](https://github.com/andrew-levy/atlas-sheet/actions/runs/38390263772).
+`SheetUiTest`, `SheetMotionTest`, `FragmentSheetTest` and `HeavyContentMotionTest` (11 tests)
+passed on both API 24 and API 35 x86_64 Pixel 4 emulators with system animations enabled:
+[run 38399272177](https://github.com/andrew-levy/atlas-sheet/actions/runs/38399272177).
 They cover intermediate entry/exit/resize frames, interrupted entry, mounted-body retention across
-hide/show, keyboard expansion and restoration, and a real Fragment ComposeView being disposed
-after an animated exit.
+hide/show, keyboard expansion and restoration, a real Fragment ComposeView being disposed after an
+animated exit, and opening timing under heavy background load.
 
 Earlier API 24 jobs never booted: the emulator aborted with "Not enough space to create userdata
-partition", so the workflow now frees hosted-runner disk first. The chat keyboard test was flaky on
-API 35 because Compose test clicks could focus the composer before the dialog window had input
-focus; it now taps the composer through the device. A separate API 24 run hit an emulator
-`DeadSystemException`, an infrastructure failure rather than a test assertion.
+partition", so the workflow now frees hosted-runner disk first. Later API 24 runs sometimes lost the
+system server during the first test (`DeadSystemException`, "System has crashed"); the emulators now
+get 3 GB of RAM and a settle period after boot. The chat keyboard test was flaky on API 35 because
+the IME ignores show requests while the sheet's dialog window lacks focus; the test now waits for
+that window to be focused, CI hides system error dialogs that can steal focus, and failures report
+the focused window.
 
 ## Demo recordings — October 13, 2026
 
