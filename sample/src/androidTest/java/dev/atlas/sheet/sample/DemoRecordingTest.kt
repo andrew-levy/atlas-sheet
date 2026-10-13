@@ -4,15 +4,23 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiDevice
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 
 /** Deliberate pauses only for human-readable screen recordings; excluded from normal CI. */
 class DemoRecordingTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
-    private fun pause() { compose.waitForIdle(); Thread.sleep(1400) }
+    @Before fun realTimeClock() { compose.mainClock.autoAdvance = false }
+    private fun pause(frames: Int = 60) {
+        repeat(frames) {
+            compose.mainClock.advanceTimeByFrame()
+            Thread.sleep(16)
+        }
+        compose.waitForIdle()
+    }
     private fun open(name: String) {
-        pause()
+        pause(4)
         compose.onNodeWithTag("gallery").performScrollToNode(hasTestTag("open-$name"))
         compose.onNodeWithTag("open-$name").performClick()
         pause()
