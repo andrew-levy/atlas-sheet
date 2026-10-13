@@ -15,3 +15,27 @@ Before a pull request:
 Include the device/API/IME used and explain the reproduction scenario. When changing public API,
 update README examples and architecture notes. Keep release artifacts and videos reproducible;
 do not check build caches or credentials into the repository.
+
+## Releasing
+
+1. Update `VERSION_NAME` in `gradle.properties` and add a matching `## [x.y.z]` section to
+   `CHANGELOG.md`.
+2. Merge to `main`, then tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+3. The Release workflow checks that the tag matches `VERSION_NAME`, runs unit tests and lint, and
+   creates a GitHub release with the changelog section and artifacts. JitPack builds the tag on
+   first request.
+4. When the Maven Central secrets are set, the workflow also uploads a signed deployment to the
+   Central Portal. Open <https://central.sonatype.com/publishing/deployments>, review it, and
+   click **Publish**. It usually appears on Maven Central within about 30 minutes.
+
+One-time Maven Central setup:
+
+- Sign in to <https://central.sonatype.com> with the `andrew-levy` GitHub account; the
+  `io.github.andrew-levy` namespace is verified automatically. Generate a user token.
+- Create a signing key (`gpg --quick-gen-key "Andrew Levy <email>" rsa4096 sign 0`), publish it
+  (`gpg --keyserver keyserver.ubuntu.com --send-keys <KEY_ID>`), and export it with
+  `gpg --armor --export-secret-keys <KEY_ID>`.
+- Add repository secrets: `MAVEN_CENTRAL_USERNAME` and `MAVEN_CENTRAL_PASSWORD` (the token),
+  `SIGNING_KEY` (the exported key) and `SIGNING_KEY_PASSWORD`.
+
+Maven Central releases are permanent; a published version cannot be replaced or deleted.

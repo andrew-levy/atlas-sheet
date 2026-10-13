@@ -81,22 +81,36 @@ The tested baseline is Compose BOM `2025.06.01` (Foundation/UI 1.8.3), Kotlin/Co
 2.1.21, AGP 8.10.1 and Gradle 8.11.1. This is an explicit compatibility floor, not a claim that
 these are the latest releases. Test dependency upgrades in your own app before rollout.
 
-## Integrate
+## Install
 
-Until a public artifact is published, include the `atlas-sheet` module in your build:
+Atlas Sheet requires Android 24+ and Compose (tested with BOM `2025.06.01`).
+
+From Maven Central:
+
+```kotlin
+// app/build.gradle.kts
+dependencies {
+    implementation("io.github.andrew-levy:atlas-sheet:0.1.0")
+}
+```
+
+Or from [JitPack](https://jitpack.io/#andrew-levy/atlas-sheet), using the release tag:
 
 ```kotlin
 // settings.gradle.kts
-include(":atlas-sheet")
-project(":atlas-sheet").projectDir = file("vendor/atlas-sheet/atlas-sheet")
+dependencyResolutionManagement {
+    repositories { google(); mavenCentral(); maven("https://jitpack.io") }
+}
 
 // app/build.gradle.kts
-implementation(project(":atlas-sheet"))
+dependencies {
+    implementation("com.github.andrew-levy:atlas-sheet:v0.1.0")
+}
 ```
 
-Or run `./gradlew :atlas-sheet:publishToMavenLocal` and use
-`implementation("dev.atlas:atlas-sheet:0.1.0")` with `mavenLocal()` in a local build.
-The coordinate is **not published to Maven Central**.
+To build from source instead, include the `atlas-sheet` module in your build, or run
+`./gradlew :atlas-sheet:publishToMavenLocal` and depend on
+`io.github.andrew-levy:atlas-sheet:0.1.0` with `mavenLocal()`. See the [changelog](CHANGELOG.md).
 
 ## Root sheet — including Fragments
 
