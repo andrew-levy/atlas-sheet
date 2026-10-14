@@ -18,7 +18,7 @@ dependencyResolutionManagement {
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.andrew-levy:atlas-sheet:v0.2.0")
+    implementation("com.github.andrew-levy:atlas-sheet:0.2.0")
 }
 ```
 

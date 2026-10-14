@@ -1,7 +1,7 @@
 name: Release
 on:
   push:
-    tags: ['v*']
+    tags: ['[0-9]*', 'v*']
 permissions:
   contents: write
 concurrency:
@@ -28,8 +28,8 @@ jobs:
         run: |
           version=$(sed -n 's/^VERSION_NAME=//p' gradle.properties)
           echo "VERSION=$version" >> "$GITHUB_ENV"
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match VERSION_NAME=$version in gradle.properties"
+          if [[ ! "$GITHUB_REF_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || [ "$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME must be an unprefixed semantic version matching VERSION_NAME=$version in gradle.properties"
             exit 1
           fi
       - name: Test, lint and package
@@ -40,7 +40,7 @@ jobs:
         run: ./gradlew :atlas-sheet:publishToMavenCentral --no-configuration-cache
       - name: Note skipped Maven Central publication
         if: env.ORG_GRADLE_PROJECT_mavenCentralUsername == '' || env.ORG_GRADLE_PROJECT_signingInMemoryKey == ''
-        run: echo "::warning::Maven Central secrets are not configured; only the GitHub release (and JitPack) will be available."
+        run: echo "::warning::Maven Central secrets are not configured; Maven Central publication skipped; JitPack availability is checked separately."
       - name: Extract release notes
         run: |
           awk -v v="$VERSION" '$0 ~ "^## \\[?"v"\\]?" {found=1; next} found && /^## / {exit} found {print}' CHANGELOG.md > release-notes.md
@@ -53,6 +53,36 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           dir="$HOME/.m2/repository/$(sed -n 's/^GROUP=//p' gradle.properties | tr . /)/atlas-sheet/$VERSION"
-          gh release create "$GITHUB_REF_NAME" --title "Atlas Sheet $VERSION" --notes-file release-notes.md \
+          gh release create "$GITHUB_REF_NAME" --title "$VERSION" --notes-file release-notes.md \
             "$dir"/atlas-sheet-"$VERSION".aar "$dir"/atlas-sheet-"$VERSION".pom \
             "$dir"/atlas-sheet-"$VERSION"-sources.jar "$dir"/atlas-sheet-"$VERSION"-javadoc.jar
+      - name: Verify JitPack publication
+        timeout-minutes: 12
+        run: |
+          base="https://jitpack.io/com/github/andrew-levy/atlas-sheet/$VERSION/atlas-sheet-$VERSION"
+          for extension in pom aar; do
+            curl --fail --show-error --location --retry 4 --retry-all-errors --retry-delay 10 \
+              --retry-max-time 300 --max-time 120 "$base.$extension" -o "$RUNNER_TEMP/atlas-sheet.$extension"
+          done
+          python3 - <<'PY'
+          import os
+          import xml.etree.ElementTree as ET
+          import zipfile
+          from pathlib import Path
+          directory = Path(os.environ["RUNNER_TEMP"])
+          namespace = {"m": "http://maven.apache.org/POM/4.0.0"}
+          pom = ET.parse(directory / "atlas-sheet.pom").getroot()
+          for field, expected in {
+              "groupId": "com.github.andrew-levy",
+              "artifactId": "atlas-sheet",
+              "version": os.environ["VERSION"],
+              "packaging": "aar",
+          }.items():
+              if pom.findtext(f"m:{field}", namespaces=namespace) != expected:
+                  raise SystemExit(f"Unexpected JitPack POM {field}")
+          with zipfile.ZipFile(directory / "atlas-sheet.aar") as aar:
+              if not {"classes.jar", "AndroidManifest.xml"} <= set(aar.namelist()):
+                  raise SystemExit("JitPack AAR is missing compiled library files")
+              if aar.testzip() is not None:
+                  raise SystemExit("JitPack AAR is corrupt")
+          PY

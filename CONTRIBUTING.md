@@ -31,13 +31,21 @@ message contains `[record-demos]`.
 
 ## Releasing
 
+Project convention: use plain semantic versions without a `v` prefix everywhere: Git tags,
+GitHub release titles, `VERSION_NAME`, and dependency examples (for example, `0.2.1`).
+Keep existing published tags intact; do not move or delete them to fix publication failures.
+
 1. Update `VERSION_NAME` in `gradle.properties` and add a matching `## [x.y.z]` section to
    `CHANGELOG.md`.
-2. Merge to `main`, then tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+2. Merge to `main`, then tag and push: `git tag X.Y.Z && git push origin X.Y.Z`.
 3. The Release workflow checks that the tag matches `VERSION_NAME`, runs unit tests and lint, and
    creates a GitHub release with the changelog section and artifacts. JitPack builds the tag on
-   first request.
-4. When the Maven Central secrets are set, the workflow also uploads a signed deployment to the
+   first request. The workflow requests and verifies the JitPack POM and AAR; a failed or
+   unavailable publication fails the workflow instead of reporting a successful release.
+4. Update the README dependency version to the new tag. Confirm the Release workflow succeeds
+   before announcing that the dependency is available. If JitPack fails, inspect its build log;
+   do not claim a GitHub release alone means JitPack published successfully.
+5. When the Maven Central secrets are set, the workflow also uploads a signed deployment to the
    Central Portal. Open <https://central.sonatype.com/publishing/deployments>, review it, and
    click **Publish**. It usually appears on Maven Central within about 30 minutes.
 
