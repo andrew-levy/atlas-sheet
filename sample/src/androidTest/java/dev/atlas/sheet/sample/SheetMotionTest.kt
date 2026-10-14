@@ -45,6 +45,10 @@ class SheetMotionTest {
             assertEquals(host.isAppearanceLightStatusBars, modal.isAppearanceLightStatusBars)
             assertEquals(host.isAppearanceLightNavigationBars, modal.isAppearanceLightNavigationBars)
             assertEquals(0, modalWindow.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            @Suppress("DEPRECATION")
+            assertEquals(android.graphics.Color.TRANSPARENT, modalWindow.statusBarColor)
+            @Suppress("DEPRECATION")
+            assertEquals(android.graphics.Color.TRANSPARENT, modalWindow.navigationBarColor)
             if (android.os.Build.VERSION.SDK_INT >= 29) {
                 assertFalse(modalWindow.isNavigationBarContrastEnforced)
                 assertFalse(modalWindow.isStatusBarContrastEnforced)
@@ -52,18 +56,14 @@ class SheetMotionTest {
         }
     }
 
-    @Test fun scrimExcludesSystemBarInsets() {
+    @Test fun scrimCoversSystemBars() {
         var top = 0
         var bottom = 0
-        var left = 0
-        var right = 0
         compose.runOnUiThread { compose.activity.setContent {
             val density = LocalDensity.current
             val insets = WindowInsets.systemBars.union(WindowInsets.displayCutout)
             top = insets.getTop(density)
             bottom = insets.getBottom(density)
-            left = insets.getLeft(density, androidx.compose.ui.unit.LayoutDirection.Ltr)
-            right = insets.getRight(density, androidx.compose.ui.unit.LayoutDirection.Ltr)
             Box(Modifier.fillMaxSize().testTag("inset-host")) {
                 AtlasSheet(
                     state = rememberSheetState(),
@@ -76,10 +76,10 @@ class SheetMotionTest {
         val host = compose.onNodeWithTag("inset-host").fetchSemanticsNode().boundsInRoot
         val scrim = compose.onNodeWithContentDescription("Dismiss inset test").fetchSemanticsNode().boundsInRoot
         assertTrue("Device supplies a system-bar inset", top > 0 || bottom > 0)
-        assertEquals(host.top + top, scrim.top, 1f)
-        assertEquals(host.bottom - bottom, scrim.bottom, 1f)
-        assertEquals(host.left + left, scrim.left, 1f)
-        assertEquals(host.right - right, scrim.right, 1f)
+        assertEquals(host.top, scrim.top, 1f)
+        assertEquals(host.bottom, scrim.bottom, 1f)
+        assertEquals(host.left, scrim.left, 1f)
+        assertEquals(host.right, scrim.right, 1f)
     }
 
     @Test fun mountedRootAnimatesAndReopensWithoutRecreatingContent() {

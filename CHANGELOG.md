@@ -4,6 +4,21 @@ All notable changes to Atlas Sheet are documented here. The project follows
 [Semantic Versioning](https://semver.org); while the version is 0.x, minor releases may change
 public API.
 
+## [0.2.0] - 2026-10-13
+
+### Changed
+
+- The scrim covers the whole host, including the status bar, navigation bar, and display
+  cutout, so the dimming has no seam at the system bars.
+- Modal windows use transparent system bars and turn off contrast overlays. The sheet
+  continues its container color behind the navigation bar.
+- The sample scrolls body content before moving the sheet (`expandBeforeScroll = false`).
+
+### Fixed
+
+- Chat lists in the sample are top-aligned. Dragging the sheet carries the messages with
+  it, and further dragging scrolls them until they run out.
+
 ## [0.1.0] - 2026-10-13
 
 Initial public release.
@@ -31,4 +46,5 @@ Initial public release.
 - Accessibility, configuration changes, OEM keyboards and real-device performance need broader
   coverage before production rollout at scale.
 
+[0.2.0]: https://github.com/andrew-levy/atlas-sheet/releases/tag/v0.2.0
 [0.1.0]: https://github.com/andrew-levy/atlas-sheet/releases/tag/v0.1.0

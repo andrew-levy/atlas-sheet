@@ -3,6 +3,8 @@ package dev.atlas.sheet
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.os.Build
+import android.view.Window
 import android.view.WindowManager
 import androidx.core.view.WindowCompat
 import androidx.compose.animation.core.Animatable
@@ -81,12 +83,9 @@ public fun AtlasModalSheet(
         val window = (view.parent as? DialogWindowProvider)?.window
         val activity = remember(view) { view.context.sheetHostActivity() }
         SideEffect {
-            // Compose owns the content scrim; system bars must not receive window dimming.
-            window?.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-            if (android.os.Build.VERSION.SDK_INT >= 29) {
-                window?.isNavigationBarContrastEnforced = false
-                window?.isStatusBarContrastEnforced = false
-            }
+            // Compose owns the scrim, including the system-bar areas. A second window dim
+            // or contrast overlay would make those bars darker than the content behind them.
+            window?.clearSheetSystemBarChrome()
             if (window != null && activity != null) {
                 val host = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
                 WindowCompat.getInsetsController(window, window.decorView).apply {
@@ -199,7 +198,6 @@ public fun AtlasSheetHost(
 
         if (scrimColor != Color.Unspecified && isVisible) {
             Box(Modifier.fillMaxSize()
-                .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout))
                 .drawBehind {
                     val smallestHeight = geometry.availableHeight - geometry.offsets.getValue(geometry.smallest)
                     val alpha = ((geometry.availableHeight - state.offsetOrHidden()) / smallestHeight).coerceIn(0f, 1f)
@@ -209,6 +207,16 @@ public fun AtlasSheetHost(
                     scope.launch { state.hide() }
                 }
                 .semantics { if (behavior.dismissOnScrim) contentDescription = "Dismiss $title" })
+        }
+        val keyboardCoversNav = behavior.imePolicy != SheetImePolicy.Ignore && imeInset > navInset
+        if (isVisible && navInset > 0 && !keyboardCoversNav) {
+            // The sheet sits on the bottom edge. Continue its color under the navigation
+            // bar so the bar does not pick up a separate, darker system scrim.
+            Box(Modifier.align(Alignment.BottomCenter)
+                .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Horizontal))
+                .widthIn(max = maxWidth).fillMaxWidth()
+                .height(with(density) { navInset.toDp() })
+                .background(containerColor))
         }
         val surfaceModifier = Modifier
             .align(Alignment.BottomCenter)
@@ -287,4 +295,21 @@ private tailrec fun Context.sheetHostActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.sheetHostActivity()
     else -> null
+}
+
+@Suppress("DEPRECATION")
+private fun Window.clearSheetSystemBarChrome() {
+    clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+    WindowCompat.setDecorFitsSystemWindows(this, false)
+    statusBarColor = android.graphics.Color.TRANSPARENT
+    navigationBarColor = android.graphics.Color.TRANSPARENT
+    if (Build.VERSION.SDK_INT >= 28) {
+        attributes = attributes.apply {
+            layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+        }
+    }
+    if (Build.VERSION.SDK_INT >= 29) {
+        isStatusBarContrastEnforced = false
+        isNavigationBarContrastEnforced = false
+    }
 }

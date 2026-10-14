@@ -16,6 +16,19 @@ Include the device/API/IME used and explain the reproduction scenario. When chan
 update README examples and architecture notes. Keep release artifacts and videos reproducible;
 do not check build caches or credentials into the repository.
 
+Demo recordings live in `docs/videos/` and are not shown in the README. To recreate them, start
+an emulator with `adb` and `ffmpeg` on `PATH`, then run:
+
+```bash
+python3 scripts/record-demos.py
+python3 scripts/record-demos.py chat
+```
+
+The script builds and installs the sample and its test APK, runs one recording test per scenario,
+and assembles per-frame screenshots into a 30 fps MP4 and a GIF. Recording tests are excluded
+from normal CI. Run the Android workflow manually with `record_demos`, or push a commit whose
+message contains `[record-demos]`.
+
 ## Releasing
 
 1. Update `VERSION_NAME` in `gradle.properties` and add a matching `## [x.y.z]` section to

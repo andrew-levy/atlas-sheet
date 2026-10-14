@@ -37,14 +37,16 @@ does not protect text entry from the keyboard. Compose/Android bring-into-view h
 fields inside scroll containers; custom content must implement its own focus scrolling.
 
 `AtlasModalSheet` uses a full-size Compose Dialog to isolate focus and input at window level.
-The OS dim flag is cleared; the scrim is drawn once in Compose. Dismissal callback runs after
+The OS dim flag is cleared, the dialog's system bars are transparent, and contrast overlays
+are disabled. The scrim is drawn once in Compose across the full host, including system bars.
+The sheet surface continues its container color behind the navigation bar. Dismissal callback runs after
 the hidden animation settles. `AtlasSheetHost` is an inline overlay with no modal focus
 isolation; a scrim-free host permits interaction with its background. Place it last in a
 full-size Box. It does not own your navigation or determine when it is removed.
 
 ## Before a broad rollout
 
-This is a 0.1.0 implementation, not a claim of proven reliability at millions-of-users scale.
+This is a 0.2.0 implementation, not a claim of proven reliability at millions-of-users scale.
 Run your own device/OEM matrix and benchmark release builds on representative low-end hardware.
 Pay particular attention to rapid animation/drag interruption, orientation and split-screen
 resizing, oversized accessibility text, gesture-navigation insets, keyboard variants, RTL,
