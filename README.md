@@ -8,7 +8,7 @@ Requires Android 24+ and Jetpack Compose.
 
 ## Install
 
-Add JitPack, then depend on the release tag:
+Add JitPack, then depend on the verified v0.2.0 release commit:
 
 ```kotlin
 // settings.gradle.kts
@@ -18,9 +18,13 @@ dependencyResolutionManagement {
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.andrew-levy:atlas-sheet:v0.2.0")
+    implementation("com.github.andrew-levy:atlas-sheet:e33ffa05fc")
 }
 ```
+
+The `v0.2.0` tag currently has a cached failed JitPack build. `e33ffa05fc` is the exact commit tagged as v0.2.0; its JitPack POM and AAR are available. Use this pinned version until the tag is rebuilt successfully. Changing this dependency requires no library API changes.
+
+If Gradle cached a failed download, sync again with `./gradlew --refresh-dependencies :app:assembleDebug` (replace `:app` with your application module).
 
 To try a local build instead, run `./gradlew :atlas-sheet:publishToMavenLocal` and depend on `io.github.andrew-levy:atlas-sheet:0.2.0` with `mavenLocal()`.
 
