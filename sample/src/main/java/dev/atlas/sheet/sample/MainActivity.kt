@@ -6,6 +6,7 @@ import android.os.SystemClock
 import android.content.Intent
 import androidx.compose.ui.platform.LocalContext
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
@@ -13,6 +14,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -44,7 +46,10 @@ private val Paper = Color(0xFFF5F6FB)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
+        )
         val autoOpen = intent.getStringExtra(EXTRA_DEMO)?.let { Demo.valueOf(it) }
         setContent {
             MaterialTheme(colorScheme = lightColorScheme(primary = Accent, background = Paper, surface = Color.White, onSurface = Ink)) {
@@ -67,7 +72,7 @@ object OpenTimings {
 
 enum class Demo(val label: String, val subtitle: String) {
     Detents("Detents", "Peek, medium, expanded • scroll handoff"),
-    Chat("Chat", "Reverse lazy list • composer above keyboard"),
+    Chat("Chat", "Lazy list • composer above keyboard"),
     Fit("Content fit", "Intrinsic size • live content changes"),
     Form("Sticky actions", "Long form • keyboard resize • pinned CTA"),
     Persistent("Persistent", "Inline sheet • interactive background"),
@@ -130,6 +135,7 @@ private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
     val behavior = remember(demo) {
         SheetBehavior(
             imePolicy = if (demo == Demo.Chat || demo == Demo.Heavy) SheetImePolicy.Expand else SheetImePolicy.Resize,
+            expandBeforeScroll = false,
             dismissOnDrag = demo != Demo.Locked,
             dismissOnScrim = demo != Demo.Locked,
             dismissOnBack = demo != Demo.Locked,
@@ -137,10 +143,18 @@ private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
     }
     var message by rememberSaveable { mutableStateOf("") }
     var extra by rememberSaveable { mutableStateOf(false) }
+    val chatList = rememberLazyListState()
     var heavyThread by remember { mutableStateOf<List<HeavyMessage>?>(null) }
     if (demo == Demo.Heavy) LaunchedEffect(Unit) { heavyThread = loadHeavyThread() }
     LaunchedEffect(state) { recordOpenTiming(demo, state, openedAt) }
-    val messages = remember { mutableStateListOf("Sounds good. Let's ship it.", "The composer stays visible at every detent.", "Try scrolling, then opening the keyboard.", "Welcome to Atlas Sheet.") }
+    val messages = remember {
+        mutableStateListOf(
+            "Welcome to Atlas Sheet.",
+            "Try scrolling, then opening the keyboard.",
+            "The composer stays visible at every detent.",
+            "Sounds good. Let's ship it.",
+        ).apply { repeat(36) { add("Message ${it + 1}: shared context stays scrollable.") } }
+    }
     val header: @Composable () -> Unit = {
         Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).testTag("sheet-header")) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -168,7 +182,10 @@ private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
                     OutlinedTextField(message, { message = it }, placeholder = { Text("Message the team") }, modifier = Modifier.weight(1f).testTag("composer"), maxLines = 3, shape = RoundedCornerShape(24.dp))
                     Button(onClick = {
                         if (message.isNotBlank()) {
-                            if (demo == Demo.Heavy) heavyThread = heavyThread.orEmpty() + HeavyMessage("You", message, "sent") else messages.add(0, message)
+                            if (demo == Demo.Heavy) heavyThread = heavyThread.orEmpty() + HeavyMessage("You", message, "sent") else {
+                                messages.add(message)
+                                chatList.requestScrollToItem(messages.lastIndex)
+                            }
                             message = ""
                         }
                     }, modifier = Modifier.testTag("send")) { Text("Send") }
@@ -187,10 +204,11 @@ private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
     val body: @Composable ColumnScope.() -> Unit = {
         when (demo) {
             Demo.Heavy -> HeavyThreadBody(heavyThread)
-            Demo.Chat -> LazyColumn(Modifier.fillMaxSize().testTag("body-list"), reverseLayout = true, contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(messages.size + 35, key = { it }) { i ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = if (i % 2 == 0) Arrangement.End else Arrangement.Start) {
-                        Text(if (i < messages.size) messages[i] else "Message ${40 - i}: shared context stays scrollable.", Modifier.widthIn(max = 280.dp).background(if (i % 2 == 0) Accent else Paper, RoundedCornerShape(18.dp)).padding(16.dp), color = if (i % 2 == 0) Color.White else Ink)
+            Demo.Chat -> LazyColumn(state = chatList, modifier = Modifier.fillMaxSize().testTag("body-list"), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(messages.size, key = { it }) { i ->
+                    val mine = i % 2 == 0
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
+                        Text(messages[i], Modifier.widthIn(max = 280.dp).background(if (mine) Accent else Paper, RoundedCornerShape(18.dp)).padding(16.dp), color = if (mine) Color.White else Ink)
                     }
                 }
             }
@@ -277,9 +295,9 @@ private fun HeavyThreadBody(thread: List<HeavyMessage>?) {
         }
         return
     }
-    LazyColumn(Modifier.fillMaxSize().testTag("body-list"), reverseLayout = true, contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize().testTag("body-list"), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         items(thread.size, key = { it }) { i ->
-            val message = thread[thread.size - 1 - i]
+            val message = thread[i]
             val mine = message.author == "You"
             Column(Modifier.fillMaxWidth(), horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
                 Text(message.text, Modifier.widthIn(max = 280.dp).background(if (mine) Accent else Paper, RoundedCornerShape(18.dp)).padding(16.dp), color = if (mine) Color.White else Ink)
