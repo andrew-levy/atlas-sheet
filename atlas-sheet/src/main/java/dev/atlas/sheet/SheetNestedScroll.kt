@@ -32,7 +32,7 @@ internal class SheetNestedScroll(
     override suspend fun onPreFling(available: Velocity): Velocity {
         val min = state.geometry?.offsets?.values?.minOrNull() ?: return Velocity.Zero
         if (expandFirst && available.y < 0f && state.offsetOrHidden() > min + 0.5f) {
-            state.settle(available.y, velocityThreshold)
+            state.finishGesture(available.y, velocityThreshold)
             moved = false
             return Velocity(0f, available.y)
         }
@@ -41,7 +41,7 @@ internal class SheetNestedScroll(
 
     override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
         if (!moved && available.y == 0f) return Velocity.Zero
-        state.settle(available.y, velocityThreshold)
+        state.finishGesture(available.y, velocityThreshold)
         moved = false
         return Velocity(0f, available.y)
     }

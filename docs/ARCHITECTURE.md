@@ -17,9 +17,14 @@ The handle and header use `anchoredDraggable`. The body participates in nested s
 upward input expands the sheet before the child scrolls by default; downward input is given
 to the child first, and only its unconsumed distance moves the sheet. Setting
 `expandBeforeScroll = false` lets the child scroll first in both directions. Vertical input
-alone is consumed; horizontal gestures are left to children. Header release uses
-Foundation's default fling behavior; nested release chooses the nearest anchor below the
-velocity threshold, or the next directional anchor above it.
+alone is consumed; horizontal gestures are left to children. Between detents the sheet tracks
+the finger. Past the top, and past the lowest detent when drag dismissal is off, leftover
+drag uses the iOS scroll-view rubber band (coefficient 0.55) as a visual translation. The
+anchors stay put, so the body does not reflow. Releasing springs that translation back with
+the state's animation spec. An inward flick past the velocity threshold drops the rubber band
+and settles. Header release otherwise uses Foundation's fling behavior; nested release
+chooses the nearest anchor below the velocity threshold, or the next directional anchor
+above it.
 
 The layout gives the header and footer their own space and allocates the remaining bounded
 viewport to the body. `Scroll` mode measures finite body content inside a library-owned
@@ -39,6 +44,7 @@ fields inside scroll containers; custom content must implement its own focus scr
 `AtlasModalSheet` uses a full-size Compose Dialog to isolate focus and input at window level.
 The OS dim flag is cleared, the dialog's system bars are transparent, and contrast overlays
 are disabled. The scrim is drawn once in Compose across the full host, including system bars.
+By default its alpha tracks the visible height until the lowest detent and then holds. `scrimFollowsDrag = false` keeps that alpha at full strength whenever the sheet is visible.
 The sheet surface continues its container color behind the navigation bar. Dismissal callback runs after
 the hidden animation settles. `AtlasSheetHost` is an inline overlay with no modal focus
 isolation; a scrim-free host permits interaction with its background. Place it last in a

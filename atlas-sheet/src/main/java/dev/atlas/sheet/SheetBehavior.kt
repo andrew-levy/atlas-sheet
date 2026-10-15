@@ -26,4 +26,6 @@ public data class SheetBehavior(
     val draggable: Boolean = true,
     val expandBeforeScroll: Boolean = true,
     val imePolicy: SheetImePolicy = SheetImePolicy.Resize,
+    /** Fade the scrim with the drag until the lowest detent. Full strength above that. */
+    val scrimFollowsDrag: Boolean = true,
 )

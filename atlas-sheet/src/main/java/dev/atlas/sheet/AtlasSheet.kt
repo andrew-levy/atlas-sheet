@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -161,9 +162,11 @@ public fun AtlasSheetHost(
     val imeVisible = imeInset > navInset
     val bottomInset = if (behavior.imePolicy == SheetImePolicy.Ignore) navInset else maxOf(navInset, imeInset)
     val fling = AnchoredDraggableDefaults.flingBehavior(state.anchored, animationSpec = state.animationSpec)
-    val nested = remember(state, behavior.draggable, behavior.expandBeforeScroll, density) {
-        SheetNestedScroll(state, behavior.expandBeforeScroll, with(density) { 125.dp.toPx() })
+    val velocityThreshold = with(density) { 125.dp.toPx() }
+    val nested = remember(state, behavior.draggable, behavior.expandBeforeScroll, velocityThreshold) {
+        SheetNestedScroll(state, behavior.expandBeforeScroll, velocityThreshold)
     }
+    val edgeOverscroll = remember(state, velocityThreshold) { SheetEdgeOverscroll(state, velocityThreshold) }
     var beforeIme by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(imeVisible, behavior.imePolicy) {
         if (behavior.imePolicy == SheetImePolicy.Expand) {
@@ -199,9 +202,10 @@ public fun AtlasSheetHost(
         if (scrimColor != Color.Unspecified && isVisible) {
             Box(Modifier.fillMaxSize()
                 .drawBehind {
+                    val visible = geometry.availableHeight - state.offsetOrHidden()
                     val smallestHeight = geometry.availableHeight - geometry.offsets.getValue(geometry.smallest)
-                    val alpha = ((geometry.availableHeight - state.offsetOrHidden()) / smallestHeight).coerceIn(0f, 1f)
-                    drawRect(scrimColor.copy(alpha = scrimColor.alpha * alpha))
+                    val fraction = scrimDragFraction(visible, smallestHeight, behavior.scrimFollowsDrag)
+                    drawRect(scrimColor.copy(alpha = scrimColor.alpha * fraction))
                 }
                 .clickable(enabled = behavior.dismissOnScrim, onClickLabel = "Dismiss $title") {
                     scope.launch { state.hide() }
@@ -213,6 +217,7 @@ public fun AtlasSheetHost(
             // The sheet sits on the bottom edge. Continue its color under the navigation
             // bar so the bar does not pick up a separate, darker system scrim.
             Box(Modifier.align(Alignment.BottomCenter)
+                .rubberTranslation(state)
                 .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Horizontal))
                 .widthIn(max = maxWidth).fillMaxWidth()
                 .height(with(density) { navInset.toDp() })
@@ -220,6 +225,7 @@ public fun AtlasSheetHost(
         }
         val surfaceModifier = Modifier
             .align(Alignment.BottomCenter)
+            .rubberTranslation(state)
             .padding(bottom = with(density) { bottomInset.toDp() })
             .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Horizontal))
             .widthIn(max = maxWidth).fillMaxWidth()
@@ -241,7 +247,13 @@ public fun AtlasSheetHost(
                 // Foundation only: no Material theme is imposed on consumers.
                 CompositionLocalProvider(LocalSheetContentColor provides contentColor) {
                     Column(Modifier.fillMaxWidth().onSizeChanged { headerHeight = it.height; headerMeasured = true }
-                        .anchoredDraggable(state.anchored, Orientation.Vertical, enabled = behavior.draggable, flingBehavior = fling)) {
+                        .anchoredDraggable(
+                            state.anchored,
+                            Orientation.Vertical,
+                            enabled = behavior.draggable,
+                            overscrollEffect = edgeOverscroll,
+                            flingBehavior = fling,
+                        )) {
                         dragHandle?.invoke()
                         header?.invoke()
                     }
@@ -290,6 +302,9 @@ public fun SheetDragHandle(modifier: Modifier = Modifier, color: Color = Color(0
 }
 
 private fun Modifier.clipToBoundsForSheet(): Modifier = this.clip(androidx.compose.ui.graphics.RectangleShape)
+
+private fun Modifier.rubberTranslation(state: SheetState): Modifier =
+    offset { IntOffset(0, state.rubberTranslation.roundToInt()) }
 
 private tailrec fun Context.sheetHostActivity(): Activity? = when (this) {
     is Activity -> this
