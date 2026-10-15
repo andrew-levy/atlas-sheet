@@ -116,7 +116,8 @@ class DemoRecordingTest {
             pause(FRAME_MILLIS)
         }
         pause()
-        compose.onNodeWithTag("body-list").performTouchInput { swipeDown() }; pause()
+        // Downward at the top of the list is given to the sheet and can dismiss it.
+        compose.onNodeWithTag("body-list").performTouchInput { swipeUp(startY = bottom * .75f, endY = bottom * .35f) }; pause()
         compose.onNodeWithTag("detent-expanded").performClick(); pause()
         compose.onNodeWithTag("close").performClick(); pause()
     }

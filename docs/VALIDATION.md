@@ -19,8 +19,9 @@ the focused window.
 
 ## Demo recordings — October 15, 2026
 
-`DemoRecordingTest` now records five scenarios on an API 35 emulator, 1080 × 2280 at density 440,
-published in `docs/videos/`:
+Five `DemoRecordingTest` scenarios are published in `docs/videos/`, captured on an API 35 emulator
+at 1080 × 2280, density 440. Detents, chat, content fit, and stacked are from October 15.
+Heavy content is the October 13 capture; that screen has not changed.
 
 - detents: peek, expanded, medium, list scroll handoff and close
 - chat: keyboard expansion, typing, sending and keyboard dismissal
