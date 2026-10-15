@@ -8,6 +8,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -49,10 +50,10 @@ public fun AtlasSheet(
             keyboard?.hide()
         }
     }
+    val dismissSlop = with(LocalDensity.current) { 24.dp.toPx() }
     LaunchedEffect(state) {
         if (state.initiallyVisible) launch { state.enter() }
-        snapshotFlow { state.hasPresented && state.currentDetent == null && !state.isVisible && !state.isAnimationRunning }
-            .collect { hidden -> if (hidden) dismissed() }
+        snapshotFlow { state.releaseDismissed(dismissSlop) }.collect { hidden -> if (hidden) dismissed() }
     }
     AtlasSheetHost(
         state, detents, modifier, behavior, bodyMode, title, maxWidth, topMargin,

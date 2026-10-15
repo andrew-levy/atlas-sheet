@@ -29,13 +29,32 @@ class SheetStateTest {
     }
     @Test fun rawDragIsBounded() {
         val state = state()
-        assertEquals(-400f, state.consumeDrag(-5000f), 0f)
+        assertEquals(-5000f, state.consumeDrag(-5000f), 0f)
         assertEquals(0f, state.offsetOrHidden(), 0f)
+        assertEquals(rubberBand(-4600f, 1000f), state.rubberTranslation, 0.01f)
     }
     @Test fun nondismissibleDragStopsAtSmallestDetent() {
         val state = state(false)
-        assertEquals(0f, state.consumeDrag(5000f), 0f)
+        assertEquals(5000f, state.consumeDrag(5000f), 0f)
         assertEquals(400f, state.offsetOrHidden(), 0f)
+        assertEquals(rubberBand(5000f, 1000f), state.rubberTranslation, 0.01f)
+    }
+    @Test fun dismissibleDragPastHiddenDoesNotRubberBand() {
+        val state = state()
+        assertEquals(600f, state.consumeDrag(600f), 0f)
+        assertEquals(1000f, state.offsetOrHidden(), 0f)
+        assertEquals(0f, state.consumeDrag(80f), 0f)
+        assertEquals(0f, state.rubberTranslation, 0f)
+    }
+    @Test fun rubberBandUnwindsBeforeTheAnchorMoves() {
+        val state = state()
+        state.consumeDrag(-400f)
+        state.consumeDrag(-120f)
+        assertEquals(rubberBand(-120f, 1000f), state.rubberTranslation, 0.01f)
+        assertEquals(0f, state.offsetOrHidden(), 0f)
+        state.consumeDrag(150f)
+        assertEquals(0f, state.rubberTranslation, 0.01f)
+        assertEquals(30f, state.offsetOrHidden(), 0.01f)
     }
     @Test fun snapUpdatesSettledValue() = runTest {
         val state = state()

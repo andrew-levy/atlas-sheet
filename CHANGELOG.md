@@ -4,6 +4,17 @@ All notable changes to Atlas Sheet are documented here. The project follows
 [Semantic Versioning](https://semver.org); while the version is 0.x, minor releases may change
 public API.
 
+## [Unreleased]
+
+### Changed
+
+- The default settle spring matches the iOS system spring: perceptual duration 0.5s, critically damped, no bounce. Open, close, detent changes, flings, content-fit resize, and the rubber-band return all use it. Pass `animationSpec` to `rememberSheetState` to keep a different curve.
+- Dragging past the top, or past the lowest detent when drag dismissal is off, rubber-bands and springs back. A dismissible pull downward still tracks the finger off screen.
+
+### Added
+
+- `SheetBehavior.scrimFollowsDrag` (default `true`). The scrim fades with the drag until the lowest detent, then stays fully opaque. Set it to `false` to hold the scrim at full strength whenever the sheet is visible.
+
 ## [0.2.0] - 2026-10-13
 
 ### Changed

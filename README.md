@@ -104,6 +104,18 @@ AtlasModalSheet(
 }
 ```
 
+## Motion
+
+The sheet settles with the same spring iOS uses for system motion: half a second, with no bounce past the snap point. Dragging between snap points tracks your finger. Dragging past the top, or past the bottom when the sheet is not allowed to close, resists and springs back. A sheet that can close still follows your finger off the screen.
+
+The dimming fades with that drag until the lowest snap point, then stays fully dim. To keep it at full strength the whole time the sheet is visible:
+
+```kotlin
+SheetBehavior(scrimFollowsDrag = false)
+```
+
+`scrimColor = Color.Unspecified` still removes the dimming.
+
 ## Keyboard
 
 Do not add `imePadding()` around the sheet. Atlas already keeps the sheet above the keyboard.
