@@ -180,6 +180,29 @@ Box(Modifier.fillMaxSize()) {
 
 Watch `currentDetent == null` if you want to remove the host after it closes.
 
+## Stack sheets
+
+Compose another `AtlasModalSheet` while one is already open. Each sheet is its own window, with its own snap points and dismissal. Closing the top sheet leaves the ones beneath it.
+
+```kotlin
+var details by remember { mutableStateOf(false) }
+
+AtlasModalSheet(state = plans, detents = planDetents, onDismissRequest = { open = false }) {
+    Plans(onOpen = { details = true })
+}
+if (details) {
+    AtlasModalSheet(
+        state = stay,
+        detents = listOf(SheetDetent.fraction("details", 0.6f)),
+        onDismissRequest = { details = false },
+    ) {
+        StayDetails()
+    }
+}
+```
+
+There is no shared scrim or linked motion between them. Each sheet dims whatever is behind it, including another sheet.
+
 ## Keep a flow from being dismissed
 
 ```kotlin

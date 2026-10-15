@@ -79,18 +79,6 @@ class DemoRecordingTest {
         pause()
     }
 
-    private fun swipeIntoView(tag: String) {
-        val viewport = compose.onNode(hasScrollAction() and hasAnyDescendant(hasTestTag(tag)))
-        repeat(8) {
-            val visible = viewport.fetchSemanticsNode().boundsInRoot
-            val target = compose.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
-            if (target.top >= visible.top && target.bottom <= visible.bottom) return
-            viewport.performTouchInput { swipeUp(startY = bottom * .8f, endY = bottom * .2f, durationMillis = 700) }
-            pause(700)
-        }
-        throw AssertionError("$tag did not scroll into view")
-    }
-
     @Test fun detents() {
         open("Detents")
         listOf("peek", "expanded", "medium").forEach { compose.onNodeWithTag("detent-$it").performClick(); pause() }
@@ -111,18 +99,13 @@ class DemoRecordingTest {
         compose.onNodeWithTag("primary-action").performClick(); pause()
         compose.onNodeWithTag("close").performClick(); pause()
     }
-    @Test fun stickyActions() {
-        open("Form")
-        compose.onNodeWithTag("field-0").performClick().performTextInput("Atlas Enterprise"); pause()
-        swipeIntoView("field-8"); pause()
-        UiDevice.getInstance(instrumentation).pressBack(); pause()
-        compose.onNodeWithTag("detent-expanded").performClick(); pause()
-    }
-    @Test fun persistent() {
-        open("Persistent")
-        compose.onNodeWithTag("detent-medium").performClick(); pause()
-        compose.onNodeWithTag("detent-peek").performClick(); pause()
-        compose.onNodeWithTag("close").performClick(); pause()
+    @Test fun stacked() {
+        open("Stack")
+        compose.onNodeWithTag("stack-open-details").performClick(); pause()
+        compose.onNodeWithTag("stack-open-confirm").performClick(); pause(1500)
+        compose.onNodeWithTag("stack-send-review").performClick(); pause()
+        compose.onNodeWithTag("stack-close-details").performClick(); pause()
+        compose.onNodeWithTag("stack-close-base").performClick(); pause()
     }
     @Test fun heavyContent() {
         open("Heavy")
@@ -136,11 +119,6 @@ class DemoRecordingTest {
         compose.onNodeWithTag("body-list").performTouchInput { swipeDown() }; pause()
         compose.onNodeWithTag("detent-expanded").performClick(); pause()
         compose.onNodeWithTag("close").performClick(); pause()
-    }
-    @Test fun protectedFlow() {
-        open("Locked")
-        UiDevice.getInstance(instrumentation).pressBack(); pause()
-        compose.onNodeWithTag("primary-action").performClick(); pause()
     }
 
     companion object {

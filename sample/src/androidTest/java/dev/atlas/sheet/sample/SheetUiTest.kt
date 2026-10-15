@@ -114,6 +114,28 @@ class SheetUiTest {
         }
         compose.onNodeWithTag("detent-medium").assertIsSelected()
     }
+    @Test fun stackedSheetsDismissFromTheTop() {
+        open("Stack")
+        compose.onNodeWithTag("stack-base-title").assertIsDisplayed()
+        compose.onNodeWithTag("stack-open-details").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("stack-details-title").assertIsDisplayed()
+        compose.onNodeWithTag("stack-open-confirm").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("stack-confirm-title").assertIsDisplayed()
+        compose.onNodeWithTag("stack-base-title").assertExists()
+        compose.onNodeWithTag("stack-send-review").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("stack-confirm-title").assertDoesNotExist()
+        compose.onNodeWithTag("stack-details-title").assertIsDisplayed()
+        compose.onNodeWithTag("stack-close-details").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("stack-details-title").assertDoesNotExist()
+        compose.onNodeWithTag("stack-base-title").assertIsDisplayed()
+        compose.onNodeWithTag("stack-close-base").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("open-Stack").assertIsDisplayed()
+    }
     @Test fun scrollingHandsOffToSheetAndCanDismiss() {
         open("Detents")
         compose.onNodeWithTag("body-list").performTouchInput { swipeUp() }

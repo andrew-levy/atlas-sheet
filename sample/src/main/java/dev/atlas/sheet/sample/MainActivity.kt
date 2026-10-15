@@ -74,6 +74,7 @@ enum class Demo(val label: String, val subtitle: String) {
     Detents("Detents", "Peek, medium, expanded • scroll handoff"),
     Chat("Chat", "Lazy list • composer above keyboard"),
     Fit("Content fit", "Intrinsic size • live content changes"),
+    Stack("Stacked", "Modal sheets layered on one another"),
     Form("Sticky actions", "Long form • keyboard resize • pinned CTA"),
     Persistent("Persistent", "Inline sheet • interactive background"),
     Locked("Protected flow", "Disable user dismissal • explicit close"),
@@ -125,6 +126,10 @@ private fun Gallery(autoOpen: Demo?) {
 
 @Composable
 private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
+    if (demo == Demo.Stack) {
+        StackedSheets(close)
+        return
+    }
     val scope = rememberCoroutineScope()
     val initial = if (demo == Demo.Fit) "content" else if (demo == Demo.Persistent) "peek" else "medium"
     val state = rememberSheetState(initialDetent = initial)
@@ -240,6 +245,143 @@ private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
         LaunchedEffect(state) { snapshotFlow { state.currentDetent }.collect { if (it == null) close() } }
     } else {
         AtlasModalSheet(state, detents, close, behavior = behavior, bodyMode = mode, title = demo.label, header = header, footer = footer, content = body)
+    }
+}
+
+private val Muted = Color(0xFF68728A)
+
+/** Three independent modal sheets. Dismissing the top one leaves the sheets beneath it. */
+@Composable
+private fun StackedSheets(close: () -> Unit) {
+    var detailsOpen by rememberSaveable { mutableStateOf(false) }
+    var reviewOpen by rememberSaveable { mutableStateOf(false) }
+    PlanSheet(onOpenDetails = { detailsOpen = true }, onDismissed = close)
+    if (detailsOpen) {
+        DetailsSheet(onOpenReview = { reviewOpen = true }, onDismissed = { detailsOpen = false })
+    }
+    if (reviewOpen) ReviewSheet(onDismissed = { reviewOpen = false })
+}
+
+@Composable
+private fun PlanSheet(onOpenDetails: () -> Unit, onDismissed: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val state = rememberSheetState(initialDetent = "plans")
+    AtlasModalSheet(
+        state = state,
+        detents = listOf(SheetDetent.fraction("plans", 0.92f)),
+        onDismissRequest = onDismissed,
+        title = "Plans",
+        header = { StackHeader("Plans", "This week", "stack-close-base", Modifier.testTag("stack-base-title")) { scope.launch { state.hide() } } },
+        footer = { StackFooter { Text("3 plans", color = Muted, modifier = Modifier.testTag("footer")) } },
+    ) {
+        Column(Modifier.padding(horizontal = 24.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Open a plan to put another sheet on top of this one.", color = Muted)
+            PlanRow("01", "Design review", "Today · 2:00 PM")
+            PlanRow("02", "Atlas mobile", "In progress · tap to open", Modifier.testTag("stack-open-details"), onOpenDetails)
+            PlanRow("03", "Ship checklist", "Friday · release")
+            PlanRow("04", "Office hours", "Next week")
+        }
+    }
+}
+
+@Composable
+private fun DetailsSheet(onOpenReview: () -> Unit, onDismissed: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val state = rememberSheetState(initialDetent = "details")
+    AtlasModalSheet(
+        state = state,
+        detents = listOf(SheetDetent.fraction("details", 0.58f)),
+        onDismissRequest = onDismissed,
+        title = "Atlas mobile",
+        header = { StackHeader("Atlas mobile", "In progress", "stack-close-details", Modifier.testTag("stack-details-title")) { scope.launch { state.hide() } } },
+        footer = {
+            StackFooter {
+                Button(onClick = onOpenReview, modifier = Modifier.fillMaxWidth().testTag("stack-open-confirm")) { Text("Request review") }
+            }
+        },
+    ) {
+        Column(Modifier.padding(horizontal = 24.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text("This sheet is its own window. The plan underneath stays where it was.", color = Muted)
+            DetailRow("Owner", "Maya Chen")
+            DetailRow("Status", "In progress")
+            DetailRow("Due", "Friday")
+        }
+    }
+}
+
+@Composable
+private fun ReviewSheet(onDismissed: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val state = rememberSheetState(initialDetent = "content")
+    AtlasModalSheet(
+        state = state,
+        detents = listOf(SheetDetent.content()),
+        onDismissRequest = onDismissed,
+        title = "Request review",
+        header = { StackHeader("Request review", "Two reviewers", "stack-close-confirm", Modifier.testTag("stack-confirm-title")) { scope.launch { state.hide() } } },
+        footer = {
+            StackFooter {
+                Button(onClick = { scope.launch { state.hide() } }, modifier = Modifier.fillMaxWidth().testTag("stack-send-review")) { Text("Send request") }
+            }
+        },
+    ) {
+        Text(
+            "Maya and Jon will be asked to review Atlas mobile. Closing this sheet leaves the two below it open.",
+            Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+            color = Muted,
+        )
+    }
+}
+
+@Composable
+private fun StackHeader(title: String, subtitle: String, closeTag: String, titleModifier: Modifier = Modifier, close: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(title, titleModifier, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text(subtitle, color = Accent, style = MaterialTheme.typography.labelMedium)
+            }
+            TextButton(onClick = close, modifier = Modifier.testTag(closeTag)) { Text("Close") }
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun StackFooter(content: @Composable RowScope.() -> Unit) {
+    Surface(shadowElevation = 6.dp) {
+        Row(
+            Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            content = content,
+        )
+    }
+}
+
+@Composable
+private fun PlanRow(index: String, title: String, subtitle: String, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
+    Row(
+        modifier.fillMaxWidth().background(Paper, RoundedCornerShape(14.dp))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(18.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(index, color = Accent, fontWeight = FontWeight.Bold)
+        Column(Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.Medium, color = Ink)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Muted)
+        }
+        if (onClick != null) Text("↗", color = Accent, style = MaterialTheme.typography.titleLarge)
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth().background(Paper, RoundedCornerShape(14.dp)).padding(18.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, color = Muted)
+        Text(value, fontWeight = FontWeight.Medium, color = Ink)
     }
 }
 

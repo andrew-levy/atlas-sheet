@@ -51,5 +51,6 @@ Run your own device/OEM matrix and benchmark release builds on representative lo
 Pay particular attention to rapid animation/drag interruption, orientation and split-screen
 resizing, oversized accessibility text, gesture-navigation insets, keyboard variants, RTL,
 TalkBack navigation and custom AndroidView nested-scroll interop. The shipped test suite and
-CI are a starting point. Predictive Back progress, stacked modal coordination, edge-to-edge
-visual tuning on every OEM, and a measured frame-time benchmark suite are not implemented.
+CI are a starting point. Predictive Back progress, linked motion or a shared scrim across
+stacked modals, edge-to-edge visual tuning on every OEM, and a measured frame-time benchmark
+suite are not implemented. Separate `AtlasModalSheet` calls do stack as independent dialogs.

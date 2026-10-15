@@ -17,17 +17,18 @@ the IME ignores show requests while the sheet's dialog window lacks focus; the t
 that window to be focused, CI hides system error dialogs that can steal focus, and failures report
 the focused window.
 
-## Demo recordings — October 13, 2026
+## Demo recordings — October 15, 2026
 
-The six original `DemoRecordingTest` scenarios were recorded in the same run on the API 35 emulator,
-1080 × 2280 at density 440, and published in `docs/videos/`:
+`DemoRecordingTest` now records five scenarios on an API 35 emulator, 1080 × 2280 at density 440,
+published in `docs/videos/`:
 
 - detents: peek, expanded, medium, list scroll handoff and close
 - chat: keyboard expansion, typing, sending and keyboard dismissal
 - contentFit: options added and removed with live animated sizing, then close
-- stickyActions: typing with the keyboard open, scrolling the form, pinned actions
-- persistent: inline host detent changes and close, without a scrim
-- protectedFlow: Back ignored, followed by explicit completion
+- stacked: a plan sheet, a detail sheet on top of it, then a review sheet, each closed from the top
+- heavyContent: skeleton rows during opening, then the loaded thread, a scroll, expand and close
+
+The protected, persistent, and sticky-actions clips are no longer recorded.
 
 The software-rendered CI emulator composites only about 2.5 frames per second, so `screenrecord`
 missed most sheet motion. Clips are therefore captured frame by frame: the test advances the paused
