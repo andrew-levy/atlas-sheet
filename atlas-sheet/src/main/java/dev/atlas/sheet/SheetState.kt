@@ -35,8 +35,14 @@ public class SheetState internal constructor(
     internal var hasPresented by mutableStateOf(false)
     internal var lastVisibleDetent = initialDetent
     private val rubberTranslationState = mutableFloatStateOf(0f)
-    /** Visual shift past an edge, in px. Negative lifts the sheet; positive pulls it down. */
+    /**
+     * Edge resistance, in px. Negative stretches the sheet upward (bottom stays put);
+     * positive pulls the whole sheet down.
+     */
     internal val rubberTranslation: Float get() = rubberTranslationState.floatValue
+    private val dragInProgressState = mutableStateOf(false)
+    /** True while a finger is dragging the sheet. Settle animations are not drags. */
+    internal val dragInProgress: Boolean get() = dragInProgressState.value
     private var rubberRaw = 0f
     private var rubberGeneration = 0
 
@@ -149,7 +155,14 @@ public class SheetState internal constructor(
     }
 
     /** Invalidates an in-flight edge spring so the finger keeps the current visual offset. */
-    internal fun beginDrag() { rubberGeneration++ }
+    internal fun beginDrag() {
+        rubberGeneration++
+        if (!dragInProgressState.value) dragInProgressState.value = true
+    }
+
+    internal fun endDrag() {
+        if (dragInProgressState.value) dragInProgressState.value = false
+    }
 
     /** Consumes [delta] against an existing rubber band. Returns the leftover for the anchors. */
     internal fun consumeRubber(delta: Float): Float {
@@ -181,6 +194,7 @@ public class SheetState internal constructor(
         rubberReleaseSettlesAnchor(rubberTranslation, velocity, velocityThreshold)
 
     internal suspend fun finishGesture(velocity: Float, velocityThreshold: Float) {
+        endDrag()
         if (edgeReleaseSettles(velocity, velocityThreshold)) {
             clearRubber()
             settle(velocity, velocityThreshold)
@@ -231,11 +245,26 @@ public class SheetState internal constructor(
         val g = geometry ?: return
         val anchors = g.offsets.toMutableMap().apply { if (dragDismiss) put(HiddenId, g.availableHeight) }
         val target = settleTarget(offsetOrHidden(), velocity, anchors, velocityThreshold)
-        anchored.animateTo(target, animationSpec)
+        // dispatchRawDelta records a velocity of 0, so the finger's fling has to be applied here.
+        animateToAnchor(target, velocity)
+    }
+
+    private suspend fun animateToAnchor(target: String, velocity: Float) {
+        endDrag()
+        anchored.anchoredDrag(target) { dragAnchors, latestTarget ->
+            val drag = this
+            val targetOffset = dragAnchors.positionOf(latestTarget)
+            val current = anchored.offset
+            if (targetOffset.isNaN() || current.isNaN() || current == targetOffset) return@anchoredDrag
+            val anim = Animatable(current)
+            anim.animateTo(targetOffset, animationSpec, initialVelocity = velocity) {
+                drag.dragTo(value, this.velocity)
+            }
+        }
     }
 }
 
-/** The default settle matches the iOS system spring: half a second, no bounce. */
+/** The default settle matches an iOS sheet: short, critically damped, and it keeps the flick. */
 @Composable
 public fun rememberSheetState(
     initialDetent: String = "expanded",

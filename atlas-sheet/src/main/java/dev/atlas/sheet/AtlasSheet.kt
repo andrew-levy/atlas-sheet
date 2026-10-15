@@ -97,9 +97,10 @@ public fun AtlasModalSheet(
             // DialogProperties selects Resize on API 30 and below and Nothing on API 31+.
             // Preserving that choice is required for legacy IME inset delivery.
         }
+        val dismissSlop = with(LocalDensity.current) { 24.dp.toPx() }
         LaunchedEffect(state) {
             try { state.enter() } catch (interrupted: CancellationException) { coroutineContext.ensureActive() }
-            snapshotFlow { state.currentDetent == null && !state.isVisible && !state.isAnimationRunning }.first { it }
+            snapshotFlow { state.releaseDismissed(dismissSlop) }.first { it }
             dismissCallback()
         }
         AtlasSheetHost(
@@ -163,6 +164,24 @@ public fun AtlasSheetHost(
     val bottomInset = if (behavior.imePolicy == SheetImePolicy.Ignore) navInset else maxOf(navInset, imeInset)
     val fling = AnchoredDraggableDefaults.flingBehavior(state.anchored, animationSpec = state.animationSpec)
     val velocityThreshold = with(density) { 125.dp.toPx() }
+    val backgroundTouchSlop = with(density) { 24.dp.toPx() }
+    val releaseBackground by remember(state, backgroundTouchSlop) {
+        derivedStateOf {
+            val g = state.geometry ?: return@derivedStateOf false
+            releasesBackgroundPointer(
+                targetHidden = state.hasPresented && state.targetDetent == null,
+                dragInProgress = state.dragInProgress,
+                visibleHeight = (g.availableHeight - state.offsetOrHidden()).coerceAtLeast(0f),
+                slop = backgroundTouchSlop,
+            )
+        }
+    }
+    val dialogWindow = (LocalView.current.parent as? DialogWindowProvider)?.window
+    SideEffect {
+        val window = dialogWindow ?: return@SideEffect
+        if (releaseBackground) window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
+        else window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
+    }
     val nested = remember(state, behavior.draggable, behavior.expandBeforeScroll, velocityThreshold) {
         SheetNestedScroll(state, behavior.expandBeforeScroll, velocityThreshold)
     }
@@ -207,17 +226,17 @@ public fun AtlasSheetHost(
                     val fraction = scrimDragFraction(visible, smallestHeight, behavior.scrimFollowsDrag)
                     drawRect(scrimColor.copy(alpha = scrimColor.alpha * fraction))
                 }
-                .clickable(enabled = behavior.dismissOnScrim, onClickLabel = "Dismiss $title") {
-                    scope.launch { state.hide() }
-                }
-                .semantics { if (behavior.dismissOnScrim) contentDescription = "Dismiss $title" })
+                .then(if (behavior.dismissOnScrim && !releaseBackground) {
+                    Modifier.clickable(onClickLabel = "Dismiss $title") { scope.launch { state.hide() } }
+                } else Modifier)
+                .semantics { if (behavior.dismissOnScrim && !releaseBackground) contentDescription = "Dismiss $title" })
         }
         val keyboardCoversNav = behavior.imePolicy != SheetImePolicy.Ignore && imeInset > navInset
         if (isVisible && navInset > 0 && !keyboardCoversNav) {
             // The sheet sits on the bottom edge. Continue its color under the navigation
             // bar so the bar does not pick up a separate, darker system scrim.
             Box(Modifier.align(Alignment.BottomCenter)
-                .rubberTranslation(state)
+                .downwardRubber(state)
                 .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Horizontal))
                 .widthIn(max = maxWidth).fillMaxWidth()
                 .height(with(density) { navInset.toDp() })
@@ -225,7 +244,7 @@ public fun AtlasSheetHost(
         }
         val surfaceModifier = Modifier
             .align(Alignment.BottomCenter)
-            .rubberTranslation(state)
+            .downwardRubber(state)
             .padding(bottom = with(density) { bottomInset.toDp() })
             .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Horizontal))
             .widthIn(max = maxWidth).fillMaxWidth()
@@ -269,6 +288,7 @@ public fun AtlasSheetHost(
                 }
             }) { parts, bounds ->
                 // A small window or tall header must not consume a fitting footer's space.
+                // Upward stretch grows this height from the top. The footer stays on the bottom edge.
                 val width = bounds.maxWidth
                 val height = bounds.maxHeight
                 val footerPart = parts[2].measure(Constraints(minWidth = width, maxWidth = width, maxHeight = height))
@@ -284,9 +304,10 @@ public fun AtlasSheetHost(
         }) { measurables, constraints ->
             // Offset reads happen in measurement, not composition, on each drag/animation frame.
             val visibleHeight = (availablePx - state.offsetOrHidden()).coerceIn(0f, availablePx)
-            val layoutHeight = if (chrome == 0) availablePx else visibleHeight.coerceAtLeast(chrome.toFloat().coerceAtMost(availablePx))
-            val child = measurables.single().measure(Constraints.fixed(constraints.maxWidth, layoutHeight.roundToInt()))
-            layout(constraints.maxWidth, visibleHeight.roundToInt()) { child.place(0, 0) }
+            val stretch = upwardStretch(state.rubberTranslation)
+            val base = if (chrome == 0) availablePx else visibleHeight.coerceAtLeast(chrome.toFloat().coerceAtMost(availablePx))
+            val child = measurables.single().measure(Constraints.fixed(constraints.maxWidth, (base + stretch).roundToInt()))
+            layout(constraints.maxWidth, (visibleHeight + stretch).roundToInt()) { child.place(0, 0) }
         }
     }
 }
@@ -303,8 +324,8 @@ public fun SheetDragHandle(modifier: Modifier = Modifier, color: Color = Color(0
 
 private fun Modifier.clipToBoundsForSheet(): Modifier = this.clip(androidx.compose.ui.graphics.RectangleShape)
 
-private fun Modifier.rubberTranslation(state: SheetState): Modifier =
-    offset { IntOffset(0, state.rubberTranslation.roundToInt()) }
+private fun Modifier.downwardRubber(state: SheetState): Modifier =
+    offset { IntOffset(0, downwardShift(state.rubberTranslation).roundToInt()) }
 
 private tailrec fun Context.sheetHostActivity(): Activity? = when (this) {
     is Activity -> this

@@ -11,7 +11,23 @@ class SheetMotionTest {
         val stiffness = (2.0 * PI / IosSheetSpringDurationSeconds).let { (it * it).toFloat() }
         assertEquals(stiffness, IosSheetSpringStiffness, 0f)
         assertEquals(1f, IosSheetSpringDampingRatio, 0f)
-        assertEquals(0.5, IosSheetSpringDurationSeconds, 0.0)
+        assertEquals(0.3, IosSheetSpringDurationSeconds, 0.0)
+    }
+
+    @Test fun upwardRubberGrowsTheSheetAndDownwardRubberSlidesIt() {
+        assertEquals(0f, upwardStretch(0f), 0f)
+        assertEquals(18f, upwardStretch(-18f), 0f)
+        assertEquals(0f, upwardStretch(18f), 0f)
+        assertEquals(18f, downwardShift(18f), 0f)
+        assertEquals(0f, downwardShift(-18f), 0f)
+    }
+
+    @Test fun backgroundTapsPassThroughOnceADismissIsVisuallyGone() {
+        assertFalse(releasesBackgroundPointer(targetHidden = false, dragInProgress = false, visibleHeight = 4f, slop = 24f))
+        assertFalse(releasesBackgroundPointer(targetHidden = true, dragInProgress = true, visibleHeight = 4f, slop = 24f))
+        assertFalse(releasesBackgroundPointer(targetHidden = true, dragInProgress = false, visibleHeight = 80f, slop = 24f))
+        assertTrue(releasesBackgroundPointer(targetHidden = true, dragInProgress = false, visibleHeight = 24f, slop = 24f))
+        assertTrue(releasesBackgroundPointer(targetHidden = true, dragInProgress = false, visibleHeight = 0f, slop = 24f))
     }
 
     @Test fun rubberBandMatchesUiScrollView() {

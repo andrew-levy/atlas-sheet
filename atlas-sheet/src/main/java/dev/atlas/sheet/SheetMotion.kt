@@ -4,8 +4,11 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sign
 
-/** Apple's system spring: perceptual duration 0.5s, bounce 0 (critically damped). */
-internal const val IosSheetSpringDurationSeconds = 0.5
+/**
+ * iOS sheet settle: short and critically damped.
+ * A half-second system spring feels late next to a flicked sheet, which is mostly done by ~300ms.
+ */
+internal const val IosSheetSpringDurationSeconds = 0.3
 internal const val IosSheetSpringDampingRatio = 1f
 
 /** stiffness = (2π / duration)^2, mass = 1. */
@@ -49,6 +52,37 @@ internal fun rubberRawFromVisual(
 internal fun rubberReleaseSettlesAnchor(translation: Float, velocity: Float, threshold: Float): Boolean {
     if (translation == 0f) return true
     return velocity != 0f && sign(velocity) != sign(translation) && abs(velocity) >= threshold
+}
+
+/** Upward rubber band, in px. The sheet grows by this much; it does not lift its bottom edge. */
+internal fun upwardStretch(rubberTranslation: Float): Float =
+    if (rubberTranslation < 0f) -rubberTranslation else 0f
+
+/** Downward rubber band, in px. The whole sheet, including its bottom edge, follows this. */
+internal fun downwardShift(rubberTranslation: Float): Float =
+    if (rubberTranslation > 0f) rubberTranslation else 0f
+
+/**
+ * True once a dismiss is far enough along that the scrim is effectively gone.
+ * Finger-down drags stay interactive so the sheet can still be caught.
+ */
+internal fun releasesBackgroundPointer(
+    targetHidden: Boolean,
+    dragInProgress: Boolean,
+    visibleHeight: Float,
+    slop: Float,
+): Boolean = targetHidden && !dragInProgress && visibleHeight <= slop
+
+/**
+ * The modal can leave composition once it is visually gone. Waiting for the spring's
+ * numerical tail keeps the last presentation "open", so the next tap is a no-op.
+ */
+internal fun SheetState.releaseDismissed(slop: Float): Boolean {
+    if (!hasPresented) return false
+    val available = geometry?.availableHeight
+    val visible = if (available == null) Float.MAX_VALUE else (available - offsetOrHidden()).coerceAtLeast(0f)
+    if (releasesBackgroundPointer(targetDetent == null, dragInProgress, visible, slop)) return true
+    return currentDetent == null && !isVisible && !isAnimationRunning
 }
 
 /** 0 at hidden, 1 at the lowest detent, held at 1 above that. Ignored when [followsDrag] is false. */

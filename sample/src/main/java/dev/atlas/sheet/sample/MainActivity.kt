@@ -85,6 +85,7 @@ enum class Demo(val label: String, val subtitle: String) {
 private fun Gallery(autoOpen: Demo?) {
     val context = LocalContext.current
     var selected by rememberSaveable { mutableStateOf<Demo?>(null) }
+    var session by remember { mutableIntStateOf(0) }
     var openedAt by remember { mutableLongStateOf(0L) }
     if (autoOpen != null) LaunchedEffect(autoOpen) {
         delay(800)
@@ -102,7 +103,11 @@ private fun Gallery(autoOpen: Demo?) {
                 Spacer(Modifier.height(14.dp))
             }
             items(Demo.entries) { demo ->
-                Card(Modifier.fillMaxWidth().testTag("open-${demo.name}").clickable { openedAt = SystemClock.uptimeMillis(); selected = demo }, colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                Card(Modifier.fillMaxWidth().testTag("open-${demo.name}").clickable {
+                    openedAt = SystemClock.uptimeMillis()
+                    session++
+                    selected = demo
+                }, colors = CardDefaults.cardColors(containerColor = Color.White)) {
                     Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(demo.label, fontWeight = FontWeight.SemiBold, color = Ink)
@@ -120,7 +125,12 @@ private fun Gallery(autoOpen: Demo?) {
             }
             item { Text("0.1.0 • Android 24+ • Foundation powered", color = Color(0xFF68728A), style = MaterialTheme.typography.labelSmall) }
         }
-        selected?.let { demo -> key(demo) { DemoSheet(demo, openedAt) { selected = null } } }
+        selected?.let { demo ->
+            key(demo, session) {
+                val token = session
+                DemoSheet(demo, openedAt) { if (session == token) selected = null }
+            }
+        }
     }
 }
 

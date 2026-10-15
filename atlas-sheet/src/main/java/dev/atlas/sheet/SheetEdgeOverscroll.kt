@@ -23,6 +23,7 @@ internal class SheetEdgeOverscroll(
     }
 
     override suspend fun applyToFling(velocity: Velocity, performFling: suspend (Velocity) -> Velocity) {
+        state.endDrag()
         val speed = velocity.y
         if (state.edgeReleaseSettles(speed, velocityThreshold)) {
             state.clearRubber()

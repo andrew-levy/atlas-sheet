@@ -40,7 +40,10 @@ internal class SheetNestedScroll(
     }
 
     override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-        if (!moved && available.y == 0f) return Velocity.Zero
+        if (!moved && available.y == 0f) {
+            state.endDrag()
+            return Velocity.Zero
+        }
         state.finishGesture(available.y, velocityThreshold)
         moved = false
         return Velocity(0f, available.y)

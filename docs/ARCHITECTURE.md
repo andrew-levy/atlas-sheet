@@ -19,8 +19,11 @@ to the child first, and only its unconsumed distance moves the sheet. Setting
 `expandBeforeScroll = false` lets the child scroll first in both directions. Vertical input
 alone is consumed; horizontal gestures are left to children. Between detents the sheet tracks
 the finger. Past the top, and past the lowest detent when drag dismissal is off, leftover
-drag uses the iOS scroll-view rubber band (coefficient 0.55) as a visual translation. The
-anchors stay put, so the body does not reflow. Releasing springs that translation back with
+drag uses the iOS scroll-view rubber band (coefficient 0.55). Upward, the sheet grows from
+the top: the bottom edge and footer stay on the screen, and the header and body move up with
+the extra height. Downward, when
+drag dismissal is off, the whole sheet translates. The anchors stay put, so the body does not
+reflow. Releasing springs that offset back with
 the state's animation spec. An inward flick past the velocity threshold drops the rubber band
 and settles. Header release otherwise uses Foundation's fling behavior; nested release
 chooses the nearest anchor below the velocity threshold, or the next directional anchor
@@ -45,8 +48,8 @@ fields inside scroll containers; custom content must implement its own focus scr
 The OS dim flag is cleared, the dialog's system bars are transparent, and contrast overlays
 are disabled. The scrim is drawn once in Compose across the full host, including system bars.
 By default its alpha tracks the visible height until the lowest detent and then holds. `scrimFollowsDrag = false` keeps that alpha at full strength whenever the sheet is visible.
-The sheet surface continues its container color behind the navigation bar. Dismissal callback runs after
-the hidden animation settles. `AtlasSheetHost` is an inline overlay with no modal focus
+The sheet surface continues its container color behind the navigation bar. Dismissal callback runs once
+the sheet is visually gone, so a following tap is not swallowed by the spring's settling tail. `AtlasSheetHost` is an inline overlay with no modal focus
 isolation; a scrim-free host permits interaction with its background. Place it last in a
 full-size Box. It does not own your navigation or determine when it is removed.
 
