@@ -21,6 +21,69 @@ import org.junit.Test
 class SheetMotionTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
+    @Test fun reachingListTopNeedsAnotherGestureBeforeSheetCollapses() {
+        lateinit var state: SheetState
+        lateinit var list: androidx.compose.foundation.lazy.LazyListState
+        compose.runOnUiThread { compose.activity.setContent {
+            state = rememberSheetState("medium")
+            list = androidx.compose.foundation.lazy.rememberLazyListState(2)
+            AtlasSheet(state, listOf(SheetDetent.fraction("small", .25f),
+                SheetDetent.fraction("medium", .6f), SheetDetent.expanded()),
+                bodyMode = SheetBodyMode.Fill,
+                behavior = SheetBehavior(dismissOnDrag = false)) {
+                androidx.compose.foundation.lazy.LazyColumn(state = list,
+                    modifier = Modifier.fillMaxSize().testTag("gesture-list")) {
+                    items(100) { Spacer(Modifier.fillMaxWidth().height(32.dp)) }
+                }
+            }
+        } }
+        compose.waitForIdle()
+        val before = state.progress
+        compose.onNodeWithTag("gesture-list").performTouchInput {
+            swipeDown(startY = height * .1f, endY = height * .9f, durationMillis = 500)
+        }
+        compose.waitForIdle()
+        assertEquals(0, list.firstVisibleItemIndex)
+        assertEquals(0, list.firstVisibleItemScrollOffset)
+        assertEquals("Reaching the edge must not drag or fling the sheet", before, state.progress, .001f)
+        compose.onNodeWithTag("gesture-list").performTouchInput {
+            swipeDown(startY = height * .1f, endY = height * .9f, durationMillis = 500)
+        }
+        compose.waitForIdle()
+        assertEquals("small", state.currentDetent)
+    }
+
+    @Test fun midScrolledContentTravelsWithHeaderDuringExpansion() {
+        lateinit var state: SheetState
+        lateinit var scope: CoroutineScope
+        lateinit var list: androidx.compose.foundation.lazy.LazyListState
+        compose.runOnUiThread { compose.activity.setContent {
+            state = rememberSheetState("medium", tween(320))
+            scope = rememberCoroutineScope()
+            list = androidx.compose.foundation.lazy.rememberLazyListState(20)
+            AtlasSheet(state, listOf(SheetDetent.fraction("medium", .5f), SheetDetent.expanded()),
+                bodyMode = SheetBodyMode.Fill,
+                header = { Spacer(Modifier.fillMaxWidth().height(48.dp).testTag("moving-header")) }) {
+                androidx.compose.foundation.lazy.LazyColumn(state = list, modifier = Modifier.fillMaxSize()) {
+                    items(100) { index -> Spacer(Modifier.fillMaxWidth().height(56.dp).testTag("row-$index")) }
+                }
+            }
+        } }
+        compose.waitForIdle()
+        val headerBefore = compose.onNodeWithTag("moving-header").getUnclippedBoundsInRoot().top.value
+        val rowBefore = compose.onNodeWithTag("row-21").getUnclippedBoundsInRoot().top.value
+        compose.mainClock.autoAdvance = false
+        compose.runOnUiThread { scope.launch { state.expand() } }
+        compose.mainClock.advanceTimeBy(128)
+        compose.waitForIdle()
+        val headerDelta = compose.onNodeWithTag("moving-header").getUnclippedBoundsInRoot().top.value - headerBefore
+        val rowDelta = compose.onNodeWithTag("row-21").getUnclippedBoundsInRoot().top.value - rowBefore
+        assertTrue("Sheet must be expanding", headerDelta < -1f)
+        assertEquals("Content stays attached to the sheet top", headerDelta, rowDelta, 1f)
+        assertEquals(20, list.firstVisibleItemIndex)
+        compose.mainClock.autoAdvance = true
+    }
+
     @Test fun modalPreservesHostSystemBarIconAppearance() {
         var dialogWindow: android.view.Window? = null
         compose.runOnUiThread { compose.activity.setContent {

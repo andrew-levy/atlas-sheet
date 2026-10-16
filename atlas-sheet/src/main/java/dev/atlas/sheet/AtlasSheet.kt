@@ -14,6 +14,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.AnchoredDraggableDefaults
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.anchoredDraggable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,6 +29,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
@@ -182,8 +186,10 @@ public fun AtlasSheetHost(
         if (releaseBackground) window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
         else window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
     }
-    val nested = remember(state, behavior.draggable, behavior.expandBeforeScroll, velocityThreshold) {
-        SheetNestedScroll(state, behavior.expandBeforeScroll, velocityThreshold)
+    val handoffThreshold = with(density) { behavior.scrollFlingThreshold.dp.toPx() }
+    val nested = remember(state, behavior, velocityThreshold, handoffThreshold) {
+        SheetNestedScroll(state, velocityThreshold, behavior.bubbleAtTop, behavior.bubbleAtBottom,
+            behavior.transferScrollFling, handoffThreshold, behavior.scrollFlingVelocityScale)
     }
     val edgeOverscroll = remember(state, velocityThreshold) { SheetEdgeOverscroll(state, velocityThreshold) }
     var beforeIme by remember { mutableStateOf<String?>(null) }
@@ -253,7 +259,12 @@ public fun AtlasSheetHost(
         Layout(modifier = surfaceModifier, content = {
             Layout(modifier = Modifier.fillMaxWidth()
                 .shadow(16.dp, shape).background(containerColor, shape)
-                .then(if (behavior.draggable) Modifier.nestedScroll(nested) else Modifier)
+                .then(if (behavior.draggable) Modifier.nestedScroll(nested).pointerInput(nested) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        nested.beginGesture()
+                    }
+                } else Modifier)
                 .semantics {
                     if (!isVisible) hideFromAccessibility()
                     paneTitle = title

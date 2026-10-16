@@ -85,6 +85,28 @@ class DemoRecordingTest {
         compose.onNodeWithTag("body-list").performTouchInput { swipeUp() }; pause()
         compose.onNodeWithTag("close").performClick(); pause()
     }
+    @Test fun scrollHandoff() {
+        // Reproduce the reported chat case: half-expanded, mid-thread, then a slow handle drag.
+        open("Chat")
+        compose.onNodeWithTag("detent-medium").performClick(); pause()
+        compose.onNodeWithTag("body-list").performTouchInput {
+            swipeUp(startY = bottom * .78f, endY = top + height * .42f, durationMillis = 900)
+        }
+        pause()
+        compose.onNodeWithTag("body-list").performTouchInput {
+            swipeUp(startY = bottom * .78f, endY = top + height * .42f, durationMillis = 900)
+        }
+        pause()
+        // Capture the handle/header and body on every slow upward drag frame.
+        val header = compose.onNodeWithTag("sheet-header")
+        header.performTouchInput { down(center) }
+        repeat(30) {
+            header.performTouchInput { moveBy(androidx.compose.ui.geometry.Offset(0f, -8f), delayMillis = FRAME_MILLIS) }
+            pause(FRAME_MILLIS)
+        }
+        header.performTouchInput { up() }; pause()
+    }
+
     @Test fun chat() {
         open("Chat")
         compose.onNodeWithTag("composer").performClick(); pause()
