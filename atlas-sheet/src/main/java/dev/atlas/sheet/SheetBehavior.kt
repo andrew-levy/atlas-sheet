@@ -28,4 +28,15 @@ public data class SheetBehavior(
     val imePolicy: SheetImePolicy = SheetImePolicy.Resize,
     /** Fade the scrim with the drag until the lowest detent. Full strength above that. */
     val scrimFollowsDrag: Boolean = true,
-)
+    /** Allow remaining child fling momentum to move the sheet when content reaches its edge. */
+    val transferScrollFling: Boolean = true,
+    /** Minimum remaining child velocity (dp/s) required to initiate an edge handoff. */
+    val scrollFlingThreshold: Float = 125f,
+    /** Fraction of remaining velocity transferred to the sheet. Zero disables momentum transfer. */
+    val scrollFlingVelocityScale: Float = 1f,
+) {
+    init {
+        require(scrollFlingThreshold.isFinite() && scrollFlingThreshold >= 0f)
+        require(scrollFlingVelocityScale.isFinite() && scrollFlingVelocityScale in 0f..1f)
+    }
+}

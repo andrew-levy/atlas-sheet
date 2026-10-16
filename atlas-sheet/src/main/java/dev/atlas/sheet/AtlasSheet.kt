@@ -182,8 +182,10 @@ public fun AtlasSheetHost(
         if (releaseBackground) window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
         else window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
     }
-    val nested = remember(state, behavior.draggable, behavior.expandBeforeScroll, velocityThreshold) {
-        SheetNestedScroll(state, behavior.expandBeforeScroll, velocityThreshold)
+    val handoffThreshold = with(density) { behavior.scrollFlingThreshold.dp.toPx() }
+    val nested = remember(state, behavior, velocityThreshold, handoffThreshold) {
+        SheetNestedScroll(state, behavior.expandBeforeScroll, velocityThreshold,
+            behavior.transferScrollFling, handoffThreshold, behavior.scrollFlingVelocityScale)
     }
     val edgeOverscroll = remember(state, velocityThreshold) { SheetEdgeOverscroll(state, velocityThreshold) }
     var beforeIme by remember { mutableStateOf<String?>(null) }

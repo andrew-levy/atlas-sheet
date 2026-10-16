@@ -154,6 +154,20 @@ public class SheetState internal constructor(
         return (delta - afterRubber) + consumed + edgeConsumed
     }
 
+    /** Nested content must receive the remainder at a sheet bound, without sheet rubber-band. */
+    internal fun consumeNestedDrag(delta: Float): Float {
+        if (!delta.isFinite() || delta == 0f || geometry == null || !anchored.offset.isFinite()) return 0f
+        val consumed = anchored.dispatchRawDelta(delta)
+        if (consumed != 0f) beginDrag()
+        return consumed
+    }
+
+    internal fun canConsumeNestedDrag(delta: Float): Boolean {
+        if (delta == 0f || !anchored.offset.isFinite()) return false
+        return if (delta < 0f) anchored.offset > anchored.anchors.minPosition()
+        else anchored.offset < anchored.anchors.maxPosition()
+    }
+
     /** Invalidates an in-flight edge spring so the finger keeps the current visual offset. */
     internal fun beginDrag() {
         rubberGeneration++

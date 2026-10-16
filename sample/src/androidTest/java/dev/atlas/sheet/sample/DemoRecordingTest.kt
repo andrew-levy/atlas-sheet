@@ -85,6 +85,24 @@ class DemoRecordingTest {
         compose.onNodeWithTag("body-list").performTouchInput { swipeUp() }; pause()
         compose.onNodeWithTag("close").performClick(); pause()
     }
+    @Test fun scrollHandoff() {
+        open("Detents")
+        compose.onNodeWithTag("detent-expanded").performClick(); pause()
+        // Put the list away from both edges, then return to medium without resetting it.
+        compose.onNodeWithTag("body-list").performTouchInput { swipeUp() }; pause()
+        compose.onNodeWithTag("detent-medium").performClick(); pause()
+        // Capture the actual drag frame by frame, including the content's position.
+        val header = compose.onNodeWithTag("sheet-header")
+        header.performTouchInput { down(center) }
+        repeat(12) {
+            header.performTouchInput { moveBy(androidx.compose.ui.geometry.Offset(0f, -12f), delayMillis = FRAME_MILLIS) }
+            pause(FRAME_MILLIS)
+        }
+        header.performTouchInput { up() }; pause()
+        compose.onNodeWithTag("body-list").performTouchInput { swipeUp() }; pause()
+        compose.onNodeWithTag("body-list").performTouchInput { swipeDown() }; pause()
+    }
+
     @Test fun chat() {
         open("Chat")
         compose.onNodeWithTag("composer").performClick(); pause()

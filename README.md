@@ -238,3 +238,26 @@ Open the project in Android Studio and run `sample` on Android 24+, with JDK 17 
 ## License
 
 Apache 2.0. See [CHANGELOG](CHANGELOG.md), [architecture](docs/ARCHITECTURE.md), and [contributing](CONTRIBUTING.md).
+
+### Scroll handoff tuning
+
+Header drags resize the sheet with the body attached below the header: a normal
+`LazyColumn` preserves its first visible item and reveals more content below.
+Use `SheetBodyMode.Fill` for caller-owned lists. A `reverseLayout = true` list anchors
+its items to the bottom instead; use chronological items in a normal list for
+this top-attached expansion behavior.
+
+```kotlin
+SheetBehavior(
+    expandBeforeScroll = true,      // Upward body drags expand, then scroll the list
+    transferScrollFling = true,     // Permit momentum handoff at a content edge
+    scrollFlingThreshold = 500f,    // Remaining speed in dp/s; higher is less sensitive
+    scrollFlingVelocityScale = .5f, // Reduce transferred momentum (0..1)
+)
+```
+
+Set `transferScrollFling = false` to require a finger drag to move the sheet at a
+content edge. A partially dragged sheet still settles to a detent. Header flicks
+are independent of these content-fling settings. Nested scrolling stops at the
+sheet bounds without engaging the header's rubber-band effect, leaving the
+remaining distance for the list. At maximum height, upward motion scrolls content.

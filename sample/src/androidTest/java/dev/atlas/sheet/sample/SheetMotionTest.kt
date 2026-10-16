@@ -21,6 +21,37 @@ import org.junit.Test
 class SheetMotionTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
+    @Test fun midScrolledContentTravelsWithHeaderDuringExpansion() {
+        lateinit var state: SheetState
+        lateinit var scope: CoroutineScope
+        lateinit var list: androidx.compose.foundation.lazy.LazyListState
+        compose.runOnUiThread { compose.activity.setContent {
+            state = rememberSheetState("medium", tween(320))
+            scope = rememberCoroutineScope()
+            list = androidx.compose.foundation.lazy.rememberLazyListState(20)
+            AtlasSheet(state, listOf(SheetDetent.fraction("medium", .5f), SheetDetent.expanded()),
+                bodyMode = SheetBodyMode.Fill,
+                header = { Spacer(Modifier.fillMaxWidth().height(48.dp).testTag("moving-header")) }) {
+                androidx.compose.foundation.lazy.LazyColumn(state = list, modifier = Modifier.fillMaxSize()) {
+                    items(100) { index -> Spacer(Modifier.fillMaxWidth().height(56.dp).testTag("row-$index")) }
+                }
+            }
+        } }
+        compose.waitForIdle()
+        val headerBefore = compose.onNodeWithTag("moving-header").getUnclippedBoundsInRoot().top.value
+        val rowBefore = compose.onNodeWithTag("row-21").getUnclippedBoundsInRoot().top.value
+        compose.mainClock.autoAdvance = false
+        compose.runOnUiThread { scope.launch { state.expand() } }
+        compose.mainClock.advanceTimeBy(128)
+        compose.waitForIdle()
+        val headerDelta = compose.onNodeWithTag("moving-header").getUnclippedBoundsInRoot().top.value - headerBefore
+        val rowDelta = compose.onNodeWithTag("row-21").getUnclippedBoundsInRoot().top.value - rowBefore
+        assertTrue("Sheet must be expanding", headerDelta < -1f)
+        assertEquals("Content stays attached to the sheet top", headerDelta, rowDelta, 1f)
+        assertEquals(20, list.firstVisibleItemIndex)
+        compose.mainClock.autoAdvance = true
+    }
+
     @Test fun modalPreservesHostSystemBarIconAppearance() {
         var dialogWindow: android.view.Window? = null
         compose.runOnUiThread { compose.activity.setContent {
