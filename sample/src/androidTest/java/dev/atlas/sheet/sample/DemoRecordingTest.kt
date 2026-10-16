@@ -86,21 +86,25 @@ class DemoRecordingTest {
         compose.onNodeWithTag("close").performClick(); pause()
     }
     @Test fun scrollHandoff() {
-        open("Detents")
-        compose.onNodeWithTag("detent-expanded").performClick(); pause()
-        // Put the list away from both edges, then return to medium without resetting it.
-        compose.onNodeWithTag("body-list").performTouchInput { swipeUp() }; pause()
+        // Reproduce the reported chat case: half-expanded, mid-thread, then a slow handle drag.
+        open("Chat")
         compose.onNodeWithTag("detent-medium").performClick(); pause()
-        // Capture the actual drag frame by frame, including the content's position.
+        compose.onNodeWithTag("body-list").performTouchInput {
+            swipeUp(startY = bottom * .78f, endY = top + height * .42f, durationMillis = 900)
+        }
+        pause()
+        compose.onNodeWithTag("body-list").performTouchInput {
+            swipeUp(startY = bottom * .78f, endY = top + height * .42f, durationMillis = 900)
+        }
+        pause()
+        // Capture the handle/header and body on every slow upward drag frame.
         val header = compose.onNodeWithTag("sheet-header")
         header.performTouchInput { down(center) }
-        repeat(12) {
-            header.performTouchInput { moveBy(androidx.compose.ui.geometry.Offset(0f, -12f), delayMillis = FRAME_MILLIS) }
+        repeat(30) {
+            header.performTouchInput { moveBy(androidx.compose.ui.geometry.Offset(0f, -8f), delayMillis = FRAME_MILLIS) }
             pause(FRAME_MILLIS)
         }
         header.performTouchInput { up() }; pause()
-        compose.onNodeWithTag("body-list").performTouchInput { swipeUp() }; pause()
-        compose.onNodeWithTag("body-list").performTouchInput { swipeDown() }; pause()
     }
 
     @Test fun chat() {
