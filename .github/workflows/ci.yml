@@ -82,10 +82,12 @@ jobs:
           name: device-reports-${{ matrix.api }}
           path: sample/build/reports/androidTests/
   demos:
+    env:
+      STACK_ONLY: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[record-stack]') }}
     # Also runs for a pushed commit whose message contains [record-demos].
     if: >-
       (github.event_name == 'workflow_dispatch' && inputs.record_demos) ||
-      (github.event_name == 'push' && contains(github.event.head_commit.message, '[record-demos]'))
+      (github.event_name == 'push' && (contains(github.event.head_commit.message, '[record-demos]') || contains(github.event.head_commit.message, '[record-stack]')))
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -120,7 +122,11 @@ jobs:
             adb shell settings put global hide_error_dialogs 1
             adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS
             adb shell cmd overlay enable-exclusive --category com.android.internal.systemui.navbar.threebutton
-            python3 scripts/record-demos.py
+            if [ "$STACK_ONLY" = "true" ]; then
+              python3 scripts/record-demos.py stacked
+            else
+              python3 scripts/record-demos.py
+            fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
