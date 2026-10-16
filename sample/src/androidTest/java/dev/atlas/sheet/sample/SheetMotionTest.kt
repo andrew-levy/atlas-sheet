@@ -21,6 +21,52 @@ import org.junit.Test
 class SheetMotionTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
+    @Test fun stackEffectFollowsInterruptedExitAndRestoresUnderlyingSheet() {
+        lateinit var stack: AtlasSheetStackState
+        lateinit var base: AtlasSheetStackEntry
+        lateinit var top: AtlasSheetStackEntry
+        lateinit var scope: CoroutineScope
+        var effectProgress = 0f
+        compose.runOnUiThread { compose.activity.setContent {
+            stack = rememberAtlasSheetStackState("base")
+            scope = rememberCoroutineScope()
+            AtlasSheetStack(stack) {
+                sheet("base", modifier = Modifier.atlasStackEffect { entry ->
+                    effectProgress = entry.coveredProgress
+                    scaleX = 1f - .1f * effectProgress
+                }) {
+                    base = LocalAtlasSheetStackEntry.current
+                    Spacer(Modifier.height(120.dp))
+                }
+                sheet("top", detents = listOf(SheetDetent.fraction("expanded", .6f))) {
+                    top = LocalAtlasSheetStackEntry.current
+                    Spacer(Modifier.height(120.dp))
+                }
+            }
+        } }
+        compose.waitForIdle()
+        compose.runOnUiThread { stack.push("top") }
+        compose.waitForIdle()
+        assertEquals(1f, effectProgress, .01f)
+        assertEquals(1, base.depth)
+        compose.mainClock.autoAdvance = false
+        compose.runOnUiThread { scope.launch { top.sheetState.hide() } }
+        compose.mainClock.advanceTimeBy(64)
+        compose.waitForIdle()
+        assertTrue("Effect must follow the exit before removal", effectProgress > 0f && effectProgress < 1f)
+        assertEquals(2, stack.keys.size)
+        compose.runOnUiThread { scope.launch { top.sheetState.show() } }
+        compose.mainClock.autoAdvance = true
+        compose.waitForIdle()
+        assertEquals("Interrupted exit keeps both entries", 2, stack.keys.size)
+        assertEquals(1f, effectProgress, .01f)
+        compose.runOnUiThread { scope.launch { stack.pop() } }
+        compose.waitForIdle()
+        assertEquals(listOf("base"), stack.keys)
+        assertEquals(0f, effectProgress, .01f)
+        assertTrue(base.isTopmost)
+    }
+
     @Test fun reachingListTopNeedsAnotherGestureBeforeSheetCollapses() {
         lateinit var state: SheetState
         lateinit var list: androidx.compose.foundation.lazy.LazyListState
