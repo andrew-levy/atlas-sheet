@@ -265,3 +265,57 @@ List fling momentum never initiates a sheet drag, regardless of these settings.
 moved the sheet. A partially dragged sheet always settles to a detent. Header
 flicks are independent of these settings. Nested scrolling stops at the sheet
 bounds without engaging the header's rubber-band effect.
+
+### Custom stack effects
+
+Use a modal stack when a flow opens one sheet above another. Atlas manages ordering,
+independent sheet state, focus isolation and animated dismissal. Your modifier defines
+how the covered surface looks; there is no mandatory scaling or padding preset.
+
+```kotlin
+val stack = rememberAtlasSheetStackState()
+val scope = rememberCoroutineScope()
+val recede = Modifier.atlasStackEffect { entry ->
+    val p = entry.coveredProgress
+    scaleX = 1f - 0.06f * p
+    scaleY = 1f - 0.04f * p
+    translationY = (-12).dp * p
+    cornerRadius = (28 + 8 * p).dp
+}
+
+Button(onClick = { stack.push("friends") }) { Text("Friends") }
+AtlasSheetStack(state = stack) {
+    sheet("friends", modifier = recede) {
+        Button(onClick = { stack.push("profile") }) { Text("Open profile") }
+    }
+    sheet("profile", modifier = recede) {
+        Button(onClick = { scope.launch { stack.pop() } }) { Text("Close") }
+    }
+}
+```
+
+- `coveredProgress` follows the **immediately covering sheet's real visible height**:
+  zero while hidden, one at its smallest detent, clamped above that detent. Opening,
+  dragging down, reversing a drag, and closing all use that same value.
+- `depth` counts entries above this one; `isTopmost` identifies the active entry.
+- `LocalAtlasSheetStackEntry.current` exposes these values and `sheetState` inside
+  content/header/footer or a custom composed modifier. Use it with normal Compose
+  layout modifiers for dynamic side padding. Scaling preserves layout and shrinks
+  content; padding changes available width and can reflow text.
+- The effect supports X/Y scale, X/Y translation in `Dp`, alpha, transform origin
+  (bottom-center by default), and optional rounded top-corner clipping. Corner
+  clipping is additional to the sheet's base shape; it cannot undo that base clip.
+- The stack's `sheet(modifier = …)` applies to the **surface**, not its full-screen
+  scrim. Existing `AtlasSheet`, `AtlasModalSheet` and `AtlasSheetHost` also expose
+  `surfaceModifier`; their existing `modifier` continues to affect the whole host.
+- `sheet` accepts detents, behavior, body mode, title, sticky header and footer.
+  When using custom detent IDs, pass `stack.push("profile", initialDetent = "medium")`.
+  The default initial detent is `expanded`; missing IDs use the smallest detent.
+- Keep `AtlasSheetStack` mounted while empty. `pop()` suspends for dismissal;
+  Back, scrim taps and drag dismissal remove only the dismissed entry. Duplicate
+  route keys create independent entries. Register every route you can push.
+- Remembered stack navigation and last requested detents survive Activity recreation;
+  transient drag/animation positions restart at presentation. This API coordinates
+  modal sheets in one stack, not separate Fragment hosts or external navigation.
+
+The **Stacked sheets** sample demonstrates three levels with an app-defined effect.
