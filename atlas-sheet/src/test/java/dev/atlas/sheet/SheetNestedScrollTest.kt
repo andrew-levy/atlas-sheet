@@ -9,50 +9,80 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SheetNestedScrollTest {
+    private val touch = NestedScrollSource.UserInput
     private fun state() = SheetState("medium", snap()).also {
         it.updateGeometry(SheetGeometry.resolve(1000f, 100f,
-            listOf("medium" to 600f, "full" to 1000f)), false)
+            listOf("small" to 300f, "medium" to 600f, "full" to 1000f)), true)
     }
-    @Test fun upwardDragHandsExactRemainderToChildAtFullHeight() {
+
+    @Test fun reachingTopDuringDragCannotCollapseUntilNewTouch() {
         val state = state()
-        val nested = SheetNestedScroll(state, true, 125f)
-        assertEquals(Offset(0f, -400f), nested.onPreScroll(Offset(0f, -450f), NestedScrollSource.UserInput))
-        assertEquals(Offset.Zero, nested.onPreScroll(Offset(0f, -80f), NestedScrollSource.UserInput))
-        assertEquals(0f, state.rubberTranslation, 0f)
-    }
-    @Test fun downwardMotionWaitsForChildEdge() {
-        val state = state()
-        state.consumeNestedDrag(-300f)
-        val nested = SheetNestedScroll(state, true, 125f)
-        assertEquals(Offset.Zero, nested.onPreScroll(Offset(0f, 90f), NestedScrollSource.UserInput))
-        assertEquals(Offset(0f, 30f), nested.onPostScroll(Offset(0f, 60f), Offset(0f, 30f), NestedScrollSource.UserInput))
-        assertEquals(130f, state.offsetOrHidden(), 0f)
-    }
-    @Test fun contentFirstDoesNotInterceptUpwardDrag() {
-        val nested = SheetNestedScroll(state(), false, 125f)
-        assertEquals(Offset.Zero, nested.onPreScroll(Offset(0f, -50f), NestedScrollSource.UserInput))
-        assertEquals(Offset(0f, -20f), nested.onPostScroll(Offset(0f, -30f), Offset(0f, -20f), NestedScrollSource.UserInput))
-    }
-    @Test fun childFlingFramesDoNotStretchOrDragSheet() {
-        val state = state()
-        val nested = SheetNestedScroll(state, true, 125f)
-        assertEquals(Offset.Zero, nested.onPostScroll(Offset.Zero, Offset(0f, -100f), NestedScrollSource.SideEffect))
+        val nested = SheetNestedScroll(state, 125f)
+        nested.beginGesture()
+        assertEquals(Offset.Zero, nested.onPostScroll(Offset(0f, 50f), Offset.Zero, touch))
+        assertEquals(Offset.Zero, nested.onPostScroll(Offset(0f, 10f), Offset(0f, 40f), touch))
+        assertEquals(Offset.Zero, nested.onPostScroll(Offset.Zero, Offset(0f, 90f), touch))
         assertEquals(400f, state.offsetOrHidden(), 0f)
-        assertFalse(state.dragInProgress)
+        nested.beginGesture()
+        assertEquals(Offset(0f, 90f), nested.onPostScroll(Offset.Zero, Offset(0f, 90f), touch))
+        assertEquals(490f, state.offsetOrHidden(), 0f)
     }
-    @Test fun disabledAndBelowThresholdFlingsLeaveSheetAlone() = runTest {
-        val state = state()
-        val disabled = SheetNestedScroll(state, false, 125f, transferFling = false)
-        assertEquals(Velocity.Zero, disabled.onPostFling(Velocity.Zero, Velocity(0f, -2000f)))
-        val guarded = SheetNestedScroll(state, false, 125f, handoffThreshold = 500f)
-        assertEquals(Velocity.Zero, guarded.onPostFling(Velocity.Zero, Velocity(0f, -499f)))
-        assertEquals(400f, state.offsetOrHidden(), 0f)
+
+    @Test fun firstDeltaPartiallyConsumedByContentLocksBothDirections() {
+        for (direction in listOf(-1f, 1f)) {
+            val state = state()
+            val nested = SheetNestedScroll(state, 125f)
+            nested.beginGesture()
+            assertEquals(Offset.Zero, nested.onPostScroll(Offset(0f, direction), Offset(0f, 80f * direction), touch))
+            assertEquals(Offset.Zero, nested.onPostScroll(Offset.Zero, Offset(0f, 80f * direction), touch))
+            // Reversing direction is not a new gesture either.
+            assertEquals(Offset.Zero, nested.onPostScroll(Offset.Zero, Offset(0f, -80f * direction), touch))
+            assertEquals(400f, state.offsetOrHidden(), 0f)
+        }
     }
-    @Test fun sheetBoundsNeverConsumeHorizontalOrCreateRubber() {
+
+    @Test fun topAndBottomSwitchesAreIndependent() {
+        for (top in listOf(false, true)) for (bottom in listOf(false, true)) {
+            for (direction in listOf(-1f, 1f)) {
+                val state = state()
+                val nested = SheetNestedScroll(state, 125f, bubbleAtTop = top, bubbleAtBottom = bottom)
+                nested.beginGesture()
+                val expected = if (if (direction > 0f) top else bottom) direction * 50f else 0f
+                assertEquals(Offset(0f, expected), nested.onPostScroll(Offset.Zero, Offset(0f, direction * 50f), touch))
+                assertEquals(400f + expected, state.offsetOrHidden(), 0f)
+            }
+        }
+    }
+
+    @Test fun inertiaAtEitherEdgeNeverStartsSheetMovement() = runTest {
+        for (direction in listOf(-1f, 1f)) {
+            val state = state()
+            val nested = SheetNestedScroll(state, 125f)
+            nested.beginGesture()
+            nested.onPostScroll(Offset(0f, 100f * direction), Offset.Zero, touch)
+            assertEquals(Velocity.Zero, nested.onPreFling(Velocity(0f, 5000f * direction)))
+            assertEquals(Offset.Zero, nested.onPostScroll(Offset.Zero, Offset(0f, 100f * direction), NestedScrollSource.SideEffect))
+            assertEquals(Velocity.Zero, nested.onPostFling(Velocity.Zero, Velocity(0f, 5000f * direction)))
+            assertEquals(400f, state.offsetOrHidden(), 0f)
+            assertFalse(state.dragInProgress)
+        }
+    }
+
+    @Test fun newTouchResetsOwnershipEvenWithoutPreviousFlingCallback() {
         val state = state()
-        val nested = SheetNestedScroll(state, true, 125f)
-        assertEquals(Offset.Zero, nested.onPostScroll(Offset.Zero, Offset(70f, 50f), NestedScrollSource.UserInput))
+        val nested = SheetNestedScroll(state, 125f)
+        nested.beginGesture()
+        nested.onPostScroll(Offset(0f, -20f), Offset.Zero, touch)
+        nested.beginGesture()
+        assertEquals(Offset(0f, -50f), nested.onPostScroll(Offset.Zero, Offset(0f, -50f), touch))
+    }
+
+    @Test fun sheetAtFullHeightHandsRemainingDistanceBackToListWithoutRubber() {
+        val state = state()
+        val nested = SheetNestedScroll(state, 125f)
+        nested.beginGesture()
+        assertEquals(Offset(0f, -400f), nested.onPostScroll(Offset.Zero, Offset(0f, -450f), touch))
+        assertEquals(Offset.Zero, nested.onPreScroll(Offset(0f, -80f), touch))
         assertEquals(0f, state.rubberTranslation, 0f)
-        assertFalse(state.dragInProgress)
     }
 }

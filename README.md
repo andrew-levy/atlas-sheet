@@ -74,13 +74,15 @@ Ids must be unique. Two snap points that land on the same height share one posit
 
 ## Let the content scroll first
 
-By default, dragging up on the body grows the sheet before the content moves. For a list or a chat, let the content scroll until it runs out, and only then move the sheet:
+Content owns a gesture if it scrolls at the start. Reaching an edge during that drag or its fling stops the list without moving the sheet. Start a new gesture at the edge to move the sheet. Each edge is independently configurable:
 
 ```kotlin
-SheetBehavior(expandBeforeScroll = false)
+SheetBehavior(bubbleAtTop = true, bubbleAtBottom = false)
 ```
 
-Dragging the handle still moves the sheet directly. Dragging down at the top of the content collapses it, and can dismiss it when drag dismissal is enabled.
+`bubbleAtTop` allows a new downward drag at the physical top to collapse or dismiss the sheet. `bubbleAtBottom` allows a new upward drag at the physical bottom to expand it. Both default to `true`; either or both can be disabled. Physical edges are independent of message order or reverse layout. Dragging the handle still moves the sheet directly.
+
+`expandBeforeScroll` is deprecated and no longer changes behavior: content always gets the first movement so the sheet cannot steal a gesture that starts inside the list.
 
 Keep a chat list top-aligned. `reverseLayout = true` pins messages to the bottom, so growing the sheet moves the top edge and leaves the bubbles in place. Put the composer in `footer`, not in the list. Atlas does not scroll to new messages for you.
 
@@ -94,7 +96,8 @@ AtlasModalSheet(
     bodyMode = SheetBodyMode.Fill,
     behavior = SheetBehavior(
         imePolicy = SheetImePolicy.Expand,
-        expandBeforeScroll = false,
+        bubbleAtTop = true,
+        bubbleAtBottom = true,
     ),
     footer = { ChatComposer() },
 ) {
@@ -249,15 +252,16 @@ this top-attached expansion behavior.
 
 ```kotlin
 SheetBehavior(
-    expandBeforeScroll = true,      // Upward body drags expand, then scroll the list
-    transferScrollFling = true,     // Permit momentum handoff at a content edge
-    scrollFlingThreshold = 500f,    // Remaining speed in dp/s; higher is less sensitive
-    scrollFlingVelocityScale = .5f, // Reduce transferred momentum (0..1)
+    bubbleAtTop = true,             // New downward gesture at the top collapses
+    bubbleAtBottom = false,         // Upward gestures at the bottom do not expand
+    transferScrollFling = true,     // Preserve release speed after dragging the sheet
+    scrollFlingThreshold = 500f,    // Minimum release speed in dp/s
+    scrollFlingVelocityScale = .5f, // Scale sheet gesture release velocity (0..1)
 )
 ```
 
-Set `transferScrollFling = false` to require a finger drag to move the sheet at a
-content edge. A partially dragged sheet still settles to a detent. Header flicks
-are independent of these content-fling settings. Nested scrolling stops at the
-sheet bounds without engaging the header's rubber-band effect, leaving the
-remaining distance for the list. At maximum height, upward motion scrolls content.
+List fling momentum never initiates a sheet drag, regardless of these settings.
+`transferScrollFling` only controls release momentum for a gesture that already
+moved the sheet. A partially dragged sheet always settles to a detent. Header
+flicks are independent of these settings. Nested scrolling stops at the sheet
+bounds without engaging the header's rubber-band effect.

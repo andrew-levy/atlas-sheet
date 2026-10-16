@@ -21,6 +21,38 @@ import org.junit.Test
 class SheetMotionTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
+    @Test fun reachingListTopNeedsAnotherGestureBeforeSheetCollapses() {
+        lateinit var state: SheetState
+        lateinit var list: androidx.compose.foundation.lazy.LazyListState
+        compose.runOnUiThread { compose.activity.setContent {
+            state = rememberSheetState("medium")
+            list = androidx.compose.foundation.lazy.rememberLazyListState(2)
+            AtlasSheet(state, listOf(SheetDetent.fraction("small", .25f),
+                SheetDetent.fraction("medium", .6f), SheetDetent.expanded()),
+                bodyMode = SheetBodyMode.Fill,
+                behavior = SheetBehavior(dismissOnDrag = false)) {
+                androidx.compose.foundation.lazy.LazyColumn(state = list,
+                    modifier = Modifier.fillMaxSize().testTag("gesture-list")) {
+                    items(100) { Spacer(Modifier.fillMaxWidth().height(32.dp)) }
+                }
+            }
+        } }
+        compose.waitForIdle()
+        val before = state.progress
+        compose.onNodeWithTag("gesture-list").performTouchInput {
+            swipeDown(startY = height * .1f, endY = height * .9f, durationMillis = 500)
+        }
+        compose.waitForIdle()
+        assertEquals(0, list.firstVisibleItemIndex)
+        assertEquals(0, list.firstVisibleItemScrollOffset)
+        assertEquals("Reaching the edge must not drag or fling the sheet", before, state.progress, .001f)
+        compose.onNodeWithTag("gesture-list").performTouchInput {
+            swipeDown(startY = height * .1f, endY = height * .9f, durationMillis = 500)
+        }
+        compose.waitForIdle()
+        assertEquals("small", state.currentDetent)
+    }
+
     @Test fun midScrolledContentTravelsWithHeaderDuringExpansion() {
         lateinit var state: SheetState
         lateinit var scope: CoroutineScope
