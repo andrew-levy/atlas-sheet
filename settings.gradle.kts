@@ -4,4 +4,4 @@ dependencyResolutionManagement {
     repositories { google(); mavenCentral() }
 }
 rootProject.name = "atlas-sheet"
-include(":atlas-sheet", ":sample")
+include(":atlas-sheet", ":sample", ":findmy")
