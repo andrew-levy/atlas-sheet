@@ -2,6 +2,12 @@ name: Release
 on:
   push:
     tags: ['[0-9]*', 'v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Unprefixed version matching VERSION_NAME (for example 0.3.0)
+        required: true
+        type: string
 permissions:
   contents: write
 concurrency:
@@ -12,6 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
+      RELEASE_TAG: ${{ inputs.version || github.ref_name }}
       ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
       ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
       ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
@@ -28,12 +35,22 @@ jobs:
         run: |
           version=$(sed -n 's/^VERSION_NAME=//p' gradle.properties)
           echo "VERSION=$version" >> "$GITHUB_ENV"
-          if [[ ! "$GITHUB_REF_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || [ "$version" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME must be an unprefixed semantic version matching VERSION_NAME=$version in gradle.properties"
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "::error::Manual releases must run from main"
+            exit 1
+          fi
+          if [[ ! "$RELEASE_TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || [ "$version" != "$RELEASE_TAG" ]; then
+            echo "::error::Tag $RELEASE_TAG must be an unprefixed semantic version matching VERSION_NAME=$version in gradle.properties"
             exit 1
           fi
       - name: Test, lint and package
         run: ./gradlew :atlas-sheet:testDebugUnitTest :atlas-sheet:lintRelease :atlas-sheet:publishToMavenLocal
+      - name: Create the tag for a manual release
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # GITHUB_TOKEN-created tags do not trigger another workflow; this run publishes it.
+        run: gh api "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$VERSION" -f "sha=$GITHUB_SHA"
       - name: Publish to Maven Central
         if: env.ORG_GRADLE_PROJECT_mavenCentralUsername != '' && env.ORG_GRADLE_PROJECT_signingInMemoryKey != ''
         # Uploads a deployment; it is released from the Central Portal (automaticRelease = false).
@@ -53,7 +70,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           dir="$HOME/.m2/repository/$(sed -n 's/^GROUP=//p' gradle.properties | tr . /)/atlas-sheet/$VERSION"
-          gh release create "$GITHUB_REF_NAME" --title "$VERSION" --notes-file release-notes.md \
+          gh release create "$RELEASE_TAG" --verify-tag --title "$VERSION" --notes-file release-notes.md \
             "$dir"/atlas-sheet-"$VERSION".aar "$dir"/atlas-sheet-"$VERSION".pom \
             "$dir"/atlas-sheet-"$VERSION"-sources.jar "$dir"/atlas-sheet-"$VERSION"-javadoc.jar
       - name: Verify JitPack publication

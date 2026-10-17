@@ -38,6 +38,8 @@ Keep existing published tags intact; do not move or delete them to fix publicati
 1. Update `VERSION_NAME` in `gradle.properties` and add a matching `## [x.y.z]` section to
    `CHANGELOG.md`.
 2. Merge to `main`, then tag and push: `git tag X.Y.Z && git push origin X.Y.Z`.
+   Alternatively, run the **Release** workflow from `main` with `version = X.Y.Z`.
+   The manual workflow validates and packages the commit before creating the unprefixed tag.
 3. The Release workflow checks that the tag matches `VERSION_NAME`, runs unit tests and lint, and
    creates a GitHub release with the changelog section and artifacts. JitPack builds the tag on
    first request. The workflow requests and verifies the JitPack POM and AAR; a failed or

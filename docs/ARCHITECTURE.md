@@ -59,7 +59,7 @@ full-size Box. It does not own your navigation or determine when it is removed.
 
 ## Before a broad rollout
 
-This is a 0.2.0 implementation, not a claim of proven reliability at millions-of-users scale.
+This is a pre-1.0 implementation, not a claim of proven reliability at millions-of-users scale.
 Run your own device/OEM matrix and benchmark release builds on representative low-end hardware.
 Pay particular attention to rapid animation/drag interruption, orientation and split-screen
 resizing, oversized accessibility text, gesture-navigation insets, keyboard variants, RTL,

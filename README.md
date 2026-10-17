@@ -18,14 +18,14 @@ dependencyResolutionManagement {
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.andrew-levy:atlas-sheet:0.2.0")
+    implementation("com.github.andrew-levy:atlas-sheet:0.3.0")
 }
 ```
 
-To try a local build instead, run `./gradlew :atlas-sheet:publishToMavenLocal` and depend on `io.github.andrew-levy:atlas-sheet:0.2.0` with `mavenLocal()`.
+To try a local build instead, run `./gradlew :atlas-sheet:publishToMavenLocal` and depend on `io.github.andrew-levy:atlas-sheet:0.3.0` with `mavenLocal()`.
 
-The examples below use the unreleased API on this branch. Published `0.2.0` uses the earlier
-names; build this source to use these examples. App-specific content functions are placeholders.
+The examples below use the `0.3.0` API. See the [changelog](CHANGELOG.md) for migration
+from `0.2.0`. App-specific content functions are placeholders.
 
 ## Choose a sheet
 
