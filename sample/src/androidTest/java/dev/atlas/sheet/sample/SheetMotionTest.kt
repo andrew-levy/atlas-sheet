@@ -21,49 +21,81 @@ import org.junit.Test
 class SheetMotionTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
-    @Test fun stackEffectFollowsInterruptedExitAndRestoresUnderlyingSheet() {
-        lateinit var stack: AtlasSheetStackState
+    @Test fun mountedModalsAccumulateDepthInterruptExitAndReopen() {
+        lateinit var stack: SheetStackState
         lateinit var base: AtlasSheetStackEntry
-        lateinit var top: AtlasSheetStackEntry
+        lateinit var middle: AtlasSheetStackEntry
+        lateinit var detail: SheetState
+        lateinit var review: SheetState
         lateinit var scope: CoroutineScope
-        var effectProgress = 0f
+        var baseDepth = 0f
+        var middleDepth = 0f
+        var dismissals = 0
         compose.runOnUiThread { compose.activity.setContent {
-            stack = rememberAtlasSheetStackState("base")
+            stack = rememberSheetStackState()
             scope = rememberCoroutineScope()
-            AtlasSheetStack(stack) {
-                sheet("base", modifier = Modifier.atlasStackEffect { entry ->
-                    effectProgress = entry.coveredProgress
-                    scaleX = 1f - .1f * effectProgress
+            val first = rememberSheetState()
+            detail = rememberSheetState(initiallyVisible = false)
+            review = rememberSheetState(initiallyVisible = false)
+            AtlasModalSheet(first, listOf(SheetDetent.expanded()), stack = stack,
+                surfaceModifier = Modifier.atlasStackEffect {
+                    baseDepth = it.animatedDepth
+                    scaleX = 1f - .06f * baseDepth
                 }) {
-                    base = LocalAtlasSheetStackEntry.current
-                    Spacer(Modifier.height(120.dp))
-                }
-                sheet("top", detents = listOf(SheetDetent.fraction("expanded", .6f))) {
-                    top = LocalAtlasSheetStackEntry.current
-                    Spacer(Modifier.height(120.dp))
-                }
+                base = requireNotNull(LocalAtlasSheetStackEntry.current)
+                Spacer(Modifier.height(120.dp).testTag("stack-first"))
+            }
+            AtlasModalSheet(detail, listOf(SheetDetent.fraction("expanded", .6f)), stack = stack,
+                surfaceModifier = Modifier.atlasStackEffect { middleDepth = it.animatedDepth }) {
+                middle = requireNotNull(LocalAtlasSheetStackEntry.current)
+                Spacer(Modifier.height(120.dp).testTag("stack-second"))
+            }
+            AtlasModalSheet(review, listOf(SheetDetent.fraction("expanded", .4f)),
+                onDismissRequest = { dismissals++ }, stack = stack) {
+                Spacer(Modifier.height(120.dp).testTag("stack-third"))
             }
         } }
         compose.waitForIdle()
-        compose.runOnUiThread { stack.push("top") }
+        assertEquals(1, stack.size)
+        compose.onNodeWithTag("stack-second").assertDoesNotExist()
+        compose.onNodeWithTag("stack-third").assertDoesNotExist()
+        compose.runOnUiThread { scope.launch { detail.show() } }
         compose.waitForIdle()
-        assertEquals(1f, effectProgress, .01f)
-        assertEquals(1, base.depth)
+        assertEquals(1f, baseDepth, .01f)
+        compose.runOnUiThread { scope.launch { review.show() } }
+        compose.waitForIdle()
+        assertEquals(3, stack.size)
+        assertEquals(2f, baseDepth, .01f)
+        assertEquals(1f, middleDepth, .01f)
         compose.mainClock.autoAdvance = false
-        compose.runOnUiThread { scope.launch { top.sheetState.hide() } }
+        compose.runOnUiThread { scope.launch { review.hide() } }
         compose.mainClock.advanceTimeBy(64)
         compose.waitForIdle()
-        assertTrue("Effect must follow the exit before removal", effectProgress > 0f && effectProgress < 1f)
-        assertEquals(2, stack.keys.size)
-        compose.runOnUiThread { scope.launch { top.sheetState.show() } }
+        assertTrue(baseDepth > 1f && baseDepth < 2f)
+        assertEquals(baseDepth - 1f, middleDepth, .01f)
+        assertEquals(3, stack.size)
+        compose.runOnUiThread { scope.launch { review.show() } }
         compose.mainClock.autoAdvance = true
         compose.waitForIdle()
-        assertEquals("Interrupted exit keeps both entries", 2, stack.keys.size)
-        assertEquals(1f, effectProgress, .01f)
-        compose.runOnUiThread { scope.launch { stack.pop() } }
+        assertEquals(0, dismissals)
+        assertEquals(2f, baseDepth, .01f)
+        repeat(2) {
+            compose.runOnUiThread { scope.launch { review.hide() } }
+            compose.waitForIdle()
+            assertEquals(it + 1, dismissals)
+            assertEquals(2, stack.size)
+            compose.onNodeWithTag("stack-third").assertDoesNotExist()
+            assertEquals(1f, baseDepth, .01f)
+            assertTrue(middle.isTopmost)
+            compose.runOnUiThread { scope.launch { review.show() } }
+            compose.waitForIdle()
+            assertEquals(3, stack.size)
+            assertEquals(2f, baseDepth, .01f)
+        }
+        compose.runOnUiThread { scope.launch { review.hide(); detail.hide() } }
         compose.waitForIdle()
-        assertEquals(listOf("base"), stack.keys)
-        assertEquals(0f, effectProgress, .01f)
+        assertEquals(1, stack.size)
+        assertEquals(0f, baseDepth, .01f)
         assertTrue(base.isTopmost)
     }
 

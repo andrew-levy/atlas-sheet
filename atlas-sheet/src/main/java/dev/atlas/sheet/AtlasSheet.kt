@@ -51,12 +51,15 @@ import kotlinx.coroutines.ensureActive
 import kotlin.coroutines.coroutineContext
 import kotlin.math.roundToInt
 
-/** Modal sheet with window-level input/focus isolation. Remove it from composition on dismissal. */
+/**
+ * State-driven modal. Keep mounted and use state.show()/hide(); the Dialog exists only while
+ * presenting. onDismissRequest runs after the exit completes. Share stack for coordinated effects.
+ */
 @Composable
 public fun AtlasModalSheet(
     state: SheetState,
     detents: List<SheetDetent>,
-    onDismissRequest: () -> Unit,
+    onDismissRequest: () -> Unit = {},
     modifier: Modifier = Modifier,
     behavior: SheetBehavior = SheetBehavior(),
     bodyMode: SheetBodyMode = SheetBodyMode.Scroll,
@@ -71,9 +74,16 @@ public fun AtlasModalSheet(
     header: @Composable (() -> Unit)? = null,
     footer: @Composable (() -> Unit)? = null,
     surfaceModifier: Modifier = Modifier,
+    stack: SheetStackState? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    SideEffect { state.preparePresentation() }
+    SideEffect { state.prepareModalPresentation() }
+    if (!state.modalPresentationRequested) return
+    val entry = remember(stack, state) { stack?.let { AtlasSheetStackEntry(it, state) } }
+    DisposableEffect(stack, state) {
+        stack?.register(state)
+        onDispose { stack?.unregister(state) }
+    }
     val scope = rememberCoroutineScope()
     val dismissCallback by rememberUpdatedState(onDismissRequest)
     Dialog(
@@ -102,16 +112,26 @@ public fun AtlasModalSheet(
             // DialogProperties selects Resize on API 30 and below and Nothing on API 31+.
             // Preserving that choice is required for legacy IME inset delivery.
         }
-        val dismissSlop = with(LocalDensity.current) { 24.dp.toPx() }
         LaunchedEffect(state) {
-            try { state.enter() } catch (interrupted: CancellationException) { coroutineContext.ensureActive() }
-            snapshotFlow { state.releaseDismissed(dismissSlop) }.first { it }
+            if (state.initialPresentationPending) {
+                state.initialPresentationPending = false
+                try { state.enter() } catch (interrupted: CancellationException) { coroutineContext.ensureActive() }
+            }
+        }
+        LaunchedEffect(state) {
+            snapshotFlow {
+                state.hasPresented && !state.modalAwaitingPresentation && state.targetDetent == null && !state.isVisible &&
+                    !state.isAnimationRunning && !state.dragInProgress
+            }.first { it }
+            state.finishModalPresentation()
             dismissCallback()
         }
-        AtlasSheetHost(
-            state, detents, modifier, behavior, bodyMode, title, maxWidth, topMargin,
-            containerColor, contentColor, scrimColor, shape, dragHandle, header, footer, surfaceModifier, content,
-        )
+        CompositionLocalProvider(LocalAtlasSheetStackEntry provides entry) {
+            AtlasSheetHost(
+                state, detents, modifier, behavior, bodyMode, title, maxWidth, topMargin,
+                containerColor, contentColor, scrimColor, shape, dragHandle, header, footer, surfaceModifier, content,
+            )
+        }
     }
 }
 

@@ -263,57 +263,62 @@ private val Muted = Color(0xFF68728A)
 /** App-defined recession; Atlas only supplies stack lifecycle and gesture progress. */
 @Composable
 private fun StackedSheets(close: () -> Unit) {
-    val stack = rememberAtlasSheetStackState("plans")
+    val stack = rememberSheetStackState()
+    val plans = rememberSheetState()
+    val details = rememberSheetState(initiallyVisible = false)
+    val review = rememberSheetState(initialDetent = "content", initiallyVisible = false)
     val scope = rememberCoroutineScope()
-    LaunchedEffect(stack) { snapshotFlow { stack.keys.isEmpty() }.collect { if (it) close() } }
     val effect = Modifier.atlasStackEffect { entry ->
-        val progress = entry.coveredProgress
-        scaleX = 1f - 0.06f * progress
-        scaleY = 1f - 0.04f * progress
-        translationY = (-12).dp * progress
-        cornerRadius = (28 + 8 * progress).dp
+        val depth = entry.animatedDepth
+        scaleX = (1f - 0.06f * depth).coerceAtLeast(0.7f)
+        scaleY = (1f - 0.04f * depth).coerceAtLeast(0.8f)
+        translationY = (-12).dp * depth
+        cornerRadius = (28 + 8 * depth).dp
     }
-    val dismiss: () -> Unit = { scope.launch { stack.pop() }; Unit }
-    AtlasSheetStack(stack) {
-        sheet(
-            "plans", detents = listOf(SheetDetent.fraction("expanded", 0.92f)),
-            modifier = effect, title = "Plans",
-            header = { StackHeader("Plans", "This week", "stack-close-base", Modifier.testTag("stack-base-title"), dismiss) },
-            footer = { StackFooter { Text("3 plans", color = Muted, modifier = Modifier.testTag("footer")) } },
-        ) {
-            Column(Modifier.padding(horizontal = 24.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Open a plan to see the surface recede. Drag the next sheet down to bring it back.", color = Muted)
-                PlanRow("01", "Design review", "Today · 2:00 PM")
-                PlanRow("02", "Atlas mobile", "In progress · tap to open", Modifier.testTag("stack-open-details")) { stack.push("details") }
-                PlanRow("03", "Ship checklist", "Friday · release")
-                PlanRow("04", "Office hours", "Next week")
-            }
+    val closePlans: () -> Unit = { scope.launch { plans.hide() }; Unit }
+    val closeDetails: () -> Unit = { scope.launch { details.hide() }; Unit }
+    val closeReview: () -> Unit = { scope.launch { review.hide() }; Unit }
+    AtlasModalSheet(
+        state = plans, stack = stack,
+        detents = listOf(SheetDetent.fraction("expanded", 0.92f)),
+        surfaceModifier = effect, title = "Plans", onDismissRequest = close,
+        header = { StackHeader("Plans", "This week", "stack-close-base", Modifier.testTag("stack-base-title"), closePlans) },
+        footer = { StackFooter { Text("3 plans", color = Muted, modifier = Modifier.testTag("footer")) } },
+    ) {
+        Column(Modifier.padding(horizontal = 24.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Every new sheet pushes earlier sheets farther back: 100%, 94%, then 88% width.", color = Muted)
+            PlanRow("01", "Design review", "Today · 2:00 PM")
+            PlanRow("02", "Atlas mobile", "In progress · tap to open", Modifier.testTag("stack-open-details")) { scope.launch { details.show() } }
+            PlanRow("03", "Ship checklist", "Friday · release")
+            PlanRow("04", "Office hours", "Next week")
         }
-        sheet(
-            "details", detents = listOf(SheetDetent.fraction("expanded", 0.58f)),
-            modifier = effect, title = "Atlas mobile",
-            header = { StackHeader("Atlas mobile", "In progress", "stack-close-details", Modifier.testTag("stack-details-title"), dismiss) },
-            footer = { StackFooter {
-                Button(onClick = { stack.push("review", "content") }, modifier = Modifier.fillMaxWidth().testTag("stack-open-confirm")) { Text("Request review") }
-            } },
-        ) {
-            Column(Modifier.padding(horizontal = 24.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text("The app defines scale, translation and corners through atlasStackEffect.", color = Muted)
-                DetailRow("Owner", "Maya Chen")
-                DetailRow("Status", "In progress")
-                DetailRow("Due", "Friday")
-            }
+    }
+    AtlasModalSheet(
+        state = details, stack = stack,
+        detents = listOf(SheetDetent.fraction("expanded", 0.58f)),
+        surfaceModifier = effect, title = "Atlas mobile",
+        header = { StackHeader("Atlas mobile", "In progress", "stack-close-details", Modifier.testTag("stack-details-title"), closeDetails) },
+        footer = { StackFooter {
+            Button(onClick = { scope.launch { review.show() } }, modifier = Modifier.fillMaxWidth().testTag("stack-open-confirm")) { Text("Request review") }
+        } },
+    ) {
+        Column(Modifier.padding(horizontal = 24.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text("Three normal modals share one stack state. Each sheet controls its own visibility.", color = Muted)
+            DetailRow("Owner", "Maya Chen")
+            DetailRow("Status", "In progress")
+            DetailRow("Due", "Friday")
         }
-        sheet(
-            "review", detents = listOf(SheetDetent.content()), modifier = effect, title = "Request review",
-            header = { StackHeader("Request review", "Two reviewers", "stack-close-confirm", Modifier.testTag("stack-confirm-title"), dismiss) },
-            footer = { StackFooter {
-                Button(onClick = dismiss, modifier = Modifier.fillMaxWidth().testTag("stack-send-review")) { Text("Send request") }
-            } },
-        ) {
-            Text("Maya and Jon will be asked to review Atlas mobile. Closing this sheet restores the one below.",
-                Modifier.padding(horizontal = 24.dp, vertical = 8.dp), color = Muted)
-        }
+    }
+    AtlasModalSheet(
+        state = review, stack = stack,
+        detents = listOf(SheetDetent.content()), surfaceModifier = effect, title = "Request review",
+        header = { StackHeader("Request review", "Two reviewers", "stack-close-confirm", Modifier.testTag("stack-confirm-title"), closeReview) },
+        footer = { StackFooter {
+            Button(onClick = closeReview, modifier = Modifier.fillMaxWidth().testTag("stack-send-review")) { Text("Send request") }
+        } },
+    ) {
+        Text("Both sheets beneath this one recede. Closing it restores each layer smoothly.",
+            Modifier.padding(horizontal = 24.dp, vertical = 8.dp), color = Muted)
     }
 }
 

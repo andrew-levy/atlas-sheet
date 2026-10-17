@@ -1,89 +1,70 @@
 package dev.atlas.sheet
 
-import androidx.compose.animation.core.spring
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.Saver
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 
-/** Navigation for one modal stack. Call push on the UI thread; pop animates before removal. */
+/** Shared coordination only: each modal owns its SheetState and visibility. */
 @Stable
-public class AtlasSheetStackState internal constructor(keys: List<String>) {
-    internal val entries = mutableStateListOf<StackEntry>().apply {
-        keys.forEach { add(StackEntry(it, "expanded")) }
-    }
-    public val keys: List<String> get() = entries.map { it.key }
+public class SheetStackState internal constructor() {
+    internal val entries = mutableStateListOf<SheetState>()
+    public val size: Int get() = entries.size
 
-    /** Keys may repeat: each push creates an independent sheet instance. */
-    public fun push(key: String, initialDetent: String = "expanded") {
-        entries.add(StackEntry(key, initialDetent))
+    internal fun register(state: SheetState) {
+        check(state !in entries) { "A SheetState cannot be presented by two modals in the same stack" }
+        entries.add(state)
     }
 
-    /** Only the captured top entry is removed, even if another entry is pushed during dismissal. */
-    public suspend fun pop() {
-        val entry = entries.lastOrNull() ?: return
-        entry.state.hide()
-        remove(entry)
-    }
-
-    internal fun remove(entry: StackEntry) { entries.remove(entry) }
+    internal fun unregister(state: SheetState) { entries.remove(state) }
 }
 
-internal class StackEntry(val key: String, initialDetent: String) {
-    val state = SheetState(initialDetent, spring(
-        dampingRatio = IosSheetSpringDampingRatio,
-        stiffness = IosSheetSpringStiffness,
-    )).apply { preparePresentation() }
-}
-
-/** Restores navigation keys and the last visible detents after Activity recreation. */
+/** Share this instance between sibling modals. Hidden mounted sheets do not join the stack. */
 @Composable
-public fun rememberAtlasSheetStackState(initialKey: String? = null): AtlasSheetStackState {
-    val saver = Saver<AtlasSheetStackState, List<String>>(
-        save = { stack -> stack.entries.flatMap { listOf(it.key, it.state.targetDetent ?: it.state.lastVisibleDetent) } },
-        restore = { saved -> AtlasSheetStackState(emptyList()).apply {
-            saved.chunked(2).forEach { (key, detent) -> push(key, detent) }
-        } },
-    )
-    return rememberSaveable(saver = saver) { AtlasSheetStackState(listOfNotNull(initialKey)) }
-}
+public fun rememberSheetStackState(): SheetStackState = remember { SheetStackState() }
 
-/** Live stack information. Read progress in drawing/layout lambdas when possible. */
+/** Live information for a modal's current presentation, available inside its content and modifiers. */
 @Stable
 public class AtlasSheetStackEntry internal constructor(
-    private val stack: AtlasSheetStackState,
-    private val entry: StackEntry,
+    private val stack: SheetStackState,
+    public val sheetState: SheetState,
 ) {
-    public val key: String get() = entry.key
-    public val sheetState: SheetState get() = entry.state
-    public val depth: Int get() = (stack.entries.lastIndex - stack.entries.indexOf(entry)).coerceAtLeast(0)
-    public val isTopmost: Boolean get() = stack.entries.lastOrNull() === entry
-    /** 0 when uncovered; 1 once the immediately covering sheet reaches its smallest detent. */
-    public val coveredProgress: Float get() {
-        val index = stack.entries.indexOf(entry)
-        if (index < 0) return 0f
-        val above = stack.entries.getOrNull(index + 1)?.state ?: return 0f
-        val geometry = above.geometry ?: return 0f
-        val height = geometry.availableHeight - geometry.offsets.getValue(geometry.smallest)
-        return stackCoverage(geometry.availableHeight - above.offsetOrHidden(), height)
+    public val depth: Int get() {
+        val index = stack.entries.indexOf(sheetState)
+        return if (index < 0) 0 else stack.entries.lastIndex - index
     }
+    public val isTopmost: Boolean get() = stack.entries.lastOrNull() === sheetState
+    /** Progress of the immediately covering sheet, from hidden to its smallest detent. */
+    public val coveredProgress: Float get() {
+        val index = stack.entries.indexOf(sheetState)
+        if (index < 0) return 0f
+        return stack.entries.getOrNull(index + 1)?.stackPresentationProgress() ?: 0f
+    }
+    /** Sum of every covering sheet's progress: 0, 1, 2 at rest for a three-sheet stack. */
+    public val animatedDepth: Float get() {
+        val index = stack.entries.indexOf(sheetState)
+        if (index < 0) return 0f
+        var total = 0f
+        for (i in index + 1 until stack.entries.size) total += stack.entries[i].stackPresentationProgress()
+        return total
+    }
+}
+
+private fun SheetState.stackPresentationProgress(): Float {
+    val g = geometry ?: return 0f
+    return stackCoverage(g.availableHeight - offsetOrHidden(), g.availableHeight - g.offsets.getValue(g.smallest))
 }
 
 internal fun stackCoverage(visibleHeight: Float, restingHeight: Float): Float =
     if (restingHeight <= 0f) 0f else (visibleHeight / restingHeight).coerceIn(0f, 1f)
 
 /** Available inside a stack sheet, including its surface modifier. */
-public val LocalAtlasSheetStackEntry: ProvidableCompositionLocal<AtlasSheetStackEntry> =
-    staticCompositionLocalOf { error("No AtlasSheetStack entry in this composition") }
+public val LocalAtlasSheetStackEntry: ProvidableCompositionLocal<AtlasSheetStackEntry?> =
+    staticCompositionLocalOf { null }
 
 /** Values reset to these defaults on each frame; translations and radii are density independent. */
 public class AtlasStackEffectScope internal constructor() {
@@ -98,13 +79,13 @@ public class AtlasStackEffectScope internal constructor() {
 
 /**
  * Transform the sheet surface without transforming its full-window scrim or input boundary.
- * Applied via AtlasSheetStackScope.sheet's modifier. Does not change content measurement.
+ * Apply via surfaceModifier. Without a stack this modifier is a no-op. Does not change measurement.
  * Use ordinary padding before this modifier to change layout width instead of scaling text.
  */
 public fun Modifier.atlasStackEffect(
     effect: AtlasStackEffectScope.(AtlasSheetStackEntry) -> Unit,
 ): Modifier = composed {
-    val entry = LocalAtlasSheetStackEntry.current
+    val entry = LocalAtlasSheetStackEntry.current ?: return@composed Modifier
     graphicsLayer {
         val values = AtlasStackEffectScope().apply { effect(entry) }
         scaleX = values.scaleX
@@ -116,77 +97,6 @@ public fun Modifier.atlasStackEffect(
         values.cornerRadius?.let {
             shape = RoundedCornerShape(topStart = it, topEnd = it)
             clip = true
-        }
-    }
-}
-
-/** Definitions are rebuilt with composition, so callbacks and captured UI state stay current. */
-public class AtlasSheetStackScope internal constructor() {
-    internal val definitions = linkedMapOf<String, StackDefinition>()
-
-    /** [modifier] affects the surface only. No stack transformation is imposed by default. */
-    public fun sheet(
-        key: String,
-        detents: List<SheetDetent> = listOf(SheetDetent.expanded()),
-        modifier: Modifier = Modifier,
-        behavior: SheetBehavior = SheetBehavior(),
-        title: String = key,
-        bodyMode: SheetBodyMode = SheetBodyMode.Scroll,
-        header: @Composable (() -> Unit)? = null,
-        footer: @Composable (() -> Unit)? = null,
-        content: @Composable ColumnScope.() -> Unit,
-    ) {
-        require(key !in definitions) { "Duplicate stack sheet definition '$key'" }
-        definitions[key] = StackDefinition(detents, modifier, behavior, title, bodyMode, header, footer, content)
-    }
-}
-
-internal class StackDefinition(
-    val detents: List<SheetDetent>,
-    val modifier: Modifier,
-    val behavior: SheetBehavior,
-    val title: String,
-    val bodyMode: SheetBodyMode,
-    val header: @Composable (() -> Unit)?,
-    val footer: @Composable (() -> Unit)?,
-    val content: @Composable ColumnScope.() -> Unit,
-)
-
-/**
- * Independent modal windows preserve focus, Back handling and touch isolation for the top sheet.
- * Keep this host mounted while empty. Each entry remains composed until its dismissal completes.
- */
-@Composable
-public fun AtlasSheetStack(
-    state: AtlasSheetStackState,
-    content: AtlasSheetStackScope.() -> Unit,
-) {
-    val scope = rememberCoroutineScope()
-    val definitions = AtlasSheetStackScope().apply(content).definitions
-    state.entries.forEach { entry ->
-        val definition = requireNotNull(definitions[entry.key]) { "No sheet registered for '${entry.key}'" }
-        key(entry) {
-            val info = remember(state, entry) { AtlasSheetStackEntry(state, entry) }
-            CompositionLocalProvider(LocalAtlasSheetStackEntry provides info) {
-                AtlasModalSheet(
-                    state = entry.state,
-                    detents = definition.detents,
-                    onDismissRequest = { scope.launch {
-                        // Modal hosts release background touches near the end of an exit.
-                        // Retain this entry until zero height so its underlying effect cannot jump.
-                        snapshotFlow { !entry.state.isVisible && !entry.state.isAnimationRunning &&
-                            !entry.state.dragInProgress }.first { it }
-                        state.remove(entry)
-                    } },
-                    behavior = definition.behavior,
-                    title = definition.title,
-                    bodyMode = definition.bodyMode,
-                    surfaceModifier = definition.modifier,
-                    header = definition.header,
-                    footer = definition.footer,
-                    content = definition.content,
-                )
-            }
         }
     }
 }

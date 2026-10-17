@@ -47,7 +47,7 @@ AtlasModalSheet(
 }
 ```
 
-Remove `AtlasModalSheet` from composition when `onDismissRequest` runs. The sheet animates closed before that callback.
+Keep `AtlasModalSheet` mounted and control visibility with `state.show()` / `state.hide()`. Its dialog is removed after dismissal. `onDismissRequest` is optional; callers may still remove the composable in that callback.
 
 ```kotlin
 scope.launch { state.animateTo("peek") }
@@ -197,26 +197,10 @@ Watch `currentDetent == null` if you want to remove the host after it closes.
 
 ## Stack sheets
 
-Compose another `AtlasModalSheet` while one is already open. Each sheet is its own window, with its own snap points and dismissal. Closing the top sheet leaves the ones beneath it.
-
-```kotlin
-var details by remember { mutableStateOf(false) }
-
-AtlasModalSheet(state = plans, detents = planDetents, onDismissRequest = { open = false }) {
-    Plans(onOpen = { details = true })
-}
-if (details) {
-    AtlasModalSheet(
-        state = stay,
-        detents = listOf(SheetDetent.fraction("details", 0.6f)),
-        onDismissRequest = { details = false },
-    ) {
-        StayDetails()
-    }
-}
-```
-
-There is no shared scrim or linked motion between them. Each sheet dims whatever is behind it, including another sheet.
+Pass the same `stack = rememberSheetStackState()` instance to each `AtlasModalSheet`.
+Each modal uses its own state and detents. Calling `show()` presents it above the others;
+calling `hide()` dismisses it without a separate visibility boolean. The custom stack
+example below adds cumulative recession with `Modifier.atlasStackEffect`.
 
 ## Keep a flow from being dismissed
 
@@ -268,54 +252,65 @@ bounds without engaging the header's rubber-band effect.
 
 ### Custom stack effects
 
-Use a modal stack when a flow opens one sheet above another. Atlas manages ordering,
-independent sheet state, focus isolation and animated dismissal. Your modifier defines
-how the covered surface looks; there is no mandatory scaling or padding preset.
+Share one `rememberSheetStackState()` between ordinary modal sheets. There is no stack
+composable, route registration, push/pop navigation, or second visibility boolean.
+Keep the modals mounted and use their own `SheetState.show()` / `hide()` methods.
 
 ```kotlin
-val stack = rememberAtlasSheetStackState()
+val stack = rememberSheetStackState()
+val friends = rememberSheetState()
+val profile = rememberSheetState(initiallyVisible = false)
 val scope = rememberCoroutineScope()
 val recede = Modifier.atlasStackEffect { entry ->
-    val p = entry.coveredProgress
-    scaleX = 1f - 0.06f * p
-    scaleY = 1f - 0.04f * p
-    translationY = (-12).dp * p
-    cornerRadius = (28 + 8 * p).dp
+    val depth = entry.animatedDepth
+    scaleX = (1f - 0.06f * depth).coerceAtLeast(0.7f)
+    scaleY = (1f - 0.04f * depth).coerceAtLeast(0.8f)
+    translationY = (-12).dp * depth
+    cornerRadius = (28 + 8 * depth).dp
 }
 
-Button(onClick = { stack.push("friends") }) { Text("Friends") }
-AtlasSheetStack(state = stack) {
-    sheet("friends", modifier = recede) {
-        Button(onClick = { stack.push("profile") }) { Text("Open profile") }
-    }
-    sheet("profile", modifier = recede) {
-        Button(onClick = { scope.launch { stack.pop() } }) { Text("Close") }
-    }
+AtlasModalSheet(
+    state = friends, stack = stack,
+    detents = listOf(SheetDetent.expanded()),
+    surfaceModifier = recede,
+) {
+    Button(onClick = { scope.launch { profile.show() } }) { Text("Open profile") }
+}
+AtlasModalSheet(
+    state = profile, stack = stack,
+    detents = listOf(SheetDetent.fraction("expanded", 0.6f)),
+    surfaceModifier = recede,
+) {
+    Button(onClick = { scope.launch { profile.hide() } }) { Text("Close") }
 }
 ```
 
-- `coveredProgress` follows the **immediately covering sheet's real visible height**:
-  zero while hidden, one at its smallest detent, clamped above that detent. Opening,
-  dragging down, reversing a drag, and closing all use that same value.
-- `depth` counts entries above this one; `isTopmost` identifies the active entry.
-- `LocalAtlasSheetStackEntry.current` exposes these values and `sheetState` inside
-  content/header/footer or a custom composed modifier. Use it with normal Compose
-  layout modifiers for dynamic side padding. Scaling preserves layout and shrinks
-  content; padding changes available width and can reflow text.
-- The effect supports X/Y scale, X/Y translation in `Dp`, alpha, transform origin
-  (bottom-center by default), and optional rounded top-corner clipping. Corner
-  clipping is additional to the sheet's base shape; it cannot undo that base clip.
-- The stack's `sheet(modifier = …)` applies to the **surface**, not its full-screen
-  scrim. Existing `AtlasSheet`, `AtlasModalSheet` and `AtlasSheetHost` also expose
-  `surfaceModifier`; their existing `modifier` continues to affect the whole host.
-- `sheet` accepts detents, behavior, body mode, title, sticky header and footer.
-  When using custom detent IDs, pass `stack.push("profile", initialDetent = "medium")`.
-  The default initial detent is `expanded`; missing IDs use the smallest detent.
-- Keep `AtlasSheetStack` mounted while empty. `pop()` suspends for dismissal;
-  Back, scrim taps and drag dismissal remove only the dismissed entry. Duplicate
-  route keys create independent entries. Register every route you can push.
-- Remembered stack navigation and last requested detents survive Activity recreation;
-  transient drag/animation positions restart at presentation. This API coordinates
-  modal sheets in one stack, not separate Fragment hosts or external navigation.
+- `animatedDepth` sums the visible progress of **every** sheet above this one. Three
+  settled layers have depths 2, 1, 0; the example gives widths 88%, 94%, 100%.
+  Opening a third sheet moves the back layer smoothly from 1 to 2. Dismissing or
+  reversing the gesture updates every underlying layer from the actual positions.
+- Each sheet contributes zero while hidden, one at its smallest detent, clamped above
+  that detent. `coveredProgress` exposes only the immediately covering sheet's progress.
+  `depth` is the integer count above; `isTopmost` identifies the active layer.
+- Hidden mounted modals create no dialog and do not count toward depth. A shown modal
+  joins at the top, remains through its completed exit, then unregisters. Showing an
+  already-presented modal does not reorder it. Simultaneous first presentations use
+  composition order; open sequentially when a specific ordering is needed.
+- `onDismissRequest` is optional and runs after the exit completes. Existing callers
+  may still remove the composable there; mounted callers can leave it in place and
+  later call `show()` again. Modal content leaves composition while hidden: hoist any
+  content state that must survive reopening outside the modal.
+- `LocalAtlasSheetStackEntry.current` is nullable outside coordinated modal content.
+  Use it in a custom composed modifier for dynamic side padding. Scaling preserves
+  layout and shrinks text; padding changes width and can reflow content.
+- The effect supports scale, translations in `Dp`, alpha, transform origin and optional
+  top-corner clipping. Clipping adds to the base shape; it cannot undo that base clip.
+  Effects apply only to `surfaceModifier`, leaving the full-screen scrim unchanged.
+- Sheets without `stack` remain independent; `atlasStackEffect` is a no-op there.
+  Share each stack only among modals in one host window. Separate stack instances do
+  not coordinate. Inline/Fragment sheets are not enrolled in this modal coordinator.
+- Each remembered `SheetState` restores its visibility/detent after Activity recreation.
+  Stack ordering itself is transient and rebuilt in composition order on restoration;
+  this coordinator does not own or persist app navigation.
 
-The **Stacked sheets** sample demonstrates three levels with an app-defined effect.
+The **Stacked sheets** sample uses three always-mounted modals with cumulative recession.
