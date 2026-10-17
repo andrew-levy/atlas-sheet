@@ -26,14 +26,25 @@ To try a local build instead, run `./gradlew :atlas-sheet:publishToMavenLocal` a
 
 ## Choose a sheet
 
-| Composable | Presentation | Use it for |
-| --- | --- | --- |
-| `AtlasModalSheet` | A separate modal window above your screen; isolates focus and input | Modal flows in Compose, dialogs, chat, and coordinated stacks |
-| `AtlasSheet` | Inside its parent layout; no separate window | Inline panels in Compose, custom navigation, or a Fragment's root view |
+Choose based on whether the screen behind the sheet should remain interactive.
 
-Both are Compose components. **`AtlasSheet` does not require a Fragment.** Both support
-`show()` / `hide()`, snap points, headers, footers, keyboard behavior, and `onDismissed`.
-The callback reports a completed dismissal; it is not a request to start closing.
+| Composable | Background interaction | Use it for |
+| --- | --- | --- |
+| `AtlasModalSheet` | Blocks interaction with the screen behind it while open | Forms, menus, confirmations, and focused flows; dismiss the sheet to return to the screen |
+| `AtlasSheet` | Can keep the background interactive when `scrimColor = Color.Unspecified` | A people list or place details over a map that you can still pan, zoom, and tap |
+
+For example, a Find My-style screen needs the map and the draggable people panel to work
+at the same time. Use `AtlasSheet` for that panel. Use `AtlasModalSheet` for a confirmation
+or form that temporarily takes over interaction.
+
+**This choice is independent of Fragments.** Both are Compose components, neither requires
+a Fragment, and either can be used inside a Fragment's `ComposeView`. Choose `AtlasSheet`
+when you want rendering inside the parent layout; `AtlasModalSheet` opens a separate dialog
+window that isolates focus and input. Removing a modal's dimming does **not** make the
+screen behind its window interactive.
+
+Both support `show()` / `hide()`, snap points, headers, footers, keyboard behavior, and
+`onDismissed`. The callback reports a completed dismissal; it is not a request to start closing.
 
 Keep either composable mounted and let `SheetState` control visibility. State defaults to
 visible; pass `initiallyVisible = false` for a sheet opened by a button. Modal content leaves
@@ -218,7 +229,11 @@ Keep the sheet mounted to reopen it. If your navigation owns removal, perform th
 
 ### Using AtlasSheet as a Fragment root
 
-Use the same `AtlasSheet` inside a `ComposeView`. Tie the composition to the Fragment's
+This example uses `AtlasSheet` because it renders within the Fragment's own view. A
+Fragment can also host `AtlasModalSheet` when modal window behavior is desired; its
+`onDismissed` callback can remove or pop the Fragment in the same way.
+
+Use `AtlasSheet` inside a `ComposeView`. Tie the composition to the Fragment's
 view lifecycle, and have the close button call `hide()` before removing the Fragment:
 
 ```kotlin
