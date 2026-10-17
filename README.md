@@ -24,11 +24,40 @@ dependencies {
 
 To try a local build instead, run `./gradlew :atlas-sheet:publishToMavenLocal` and depend on `io.github.andrew-levy:atlas-sheet:0.2.0` with `mavenLocal()`.
 
-## Show a sheet
+## Choose a sheet
+
+| Composable | Presentation | Use it for |
+| --- | --- | --- |
+| `AtlasModalSheet` | A separate modal window above your screen; isolates focus and input | Modal flows in Compose, dialogs, chat, and coordinated stacks |
+| `AtlasSheet` | Inside its parent layout; no separate window | Inline panels in Compose, custom navigation, or a Fragment's root view |
+
+Both are Compose components. **`AtlasSheet` does not require a Fragment.** Both support
+`show()` / `hide()`, snap points, headers, footers, keyboard behavior, and `onDismissed`.
+The callback reports a completed dismissal; it is not a request to start closing.
+
+Keep either composable mounted and let `SheetState` control visibility. State defaults to
+visible; pass `initiallyVisible = false` for a sheet opened by a button. Modal content leaves
+composition while hidden, so hoist content state that must survive reopening.
+
+The examples below describe the API on `main` / this branch, including unreleased pre-1.0
+renames. The published `0.2.0` artifact uses the earlier API; use a build of this source for
+these examples. App-specific content functions in the snippets are placeholders.
+
+## AtlasModalSheet: a modal above your screen
+
+![Modal sheet opening, resizing between snap points, and closing](docs/videos/detents.gif)
+
+Use this for a modal in an ordinary Compose screen. No Fragment or separate visibility
+boolean is needed.
 
 ```kotlin
-val state = rememberSheetState(initialSnapPoint = "medium")
+val state = rememberSheetState(
+    initialSnapPoint = "medium",
+    initiallyVisible = false,
+)
 val scope = rememberCoroutineScope()
+
+Button(onClick = { scope.launch { state.show() } }) { Text("Open order") }
 
 AtlasModalSheet(
     state = state,
@@ -37,7 +66,6 @@ AtlasModalSheet(
         SheetSnapPoint.fraction("medium", 0.6f),
         SheetSnapPoint.expanded(),
     ),
-    onDismissed = { open = false },
     header = { Text("Order") },
     footer = {
         Button(onClick = { scope.launch { state.hide() } }) { Text("Done") }
@@ -59,6 +87,8 @@ scope.launch { state.hide() }
 `currentSnapPoint` is the snap point the sheet has settled on, or `null` while it is hidden. `progress` is the visible height from `0` to `1`.
 
 ## Snap points
+
+![The sheet grows and shrinks with finite content](docs/videos/contentFit.gif)
 
 | Factory | Height |
 | --- | --- |
@@ -82,8 +112,6 @@ SheetBehavior(bubbleAtTop = true, bubbleAtBottom = false)
 
 `bubbleAtTop` allows a new downward drag at the physical top to collapse or dismiss the sheet. `bubbleAtBottom` allows a new upward drag at the physical bottom to expand it. Both default to `true`; either or both can be disabled. Physical edges are independent of message order or reverse layout. Dragging the handle still moves the sheet directly.
 
-`expandBeforeScroll` is deprecated and no longer changes behavior: content always gets the first movement so the sheet cannot steal a gesture that starts inside the list.
-
 Keep a chat list top-aligned. `reverseLayout = true` pins messages to the bottom, so growing the sheet moves the top edge and leaves the bubbles in place. Put the composer in `footer`, not in the list. Atlas does not scroll to new messages for you.
 
 Lazy content cannot use `fitContent()`, because items that are not composed have no height. Use `SheetBodyMode.Fill` and fixed, fractional, or custom snap points:
@@ -92,7 +120,6 @@ Lazy content cannot use `fitContent()`, because items that are not composed have
 AtlasModalSheet(
     state = state,
     snapPoints = snapPoints,
-    onDismissed = { open = false },
     bodyMode = SheetBodyMode.Fill,
     behavior = SheetBehavior(
         keyboardBehavior = SheetKeyboardBehavior.Expand,
@@ -109,7 +136,7 @@ AtlasModalSheet(
 
 ## Motion
 
-The sheet settles with the same spring iOS uses for system motion: half a second, with no bounce past the snap point. Dragging between snap points tracks your finger. Dragging past the top, or past the bottom when the sheet is not allowed to close, resists and springs back. A sheet that can close still follows your finger off the screen.
+The default settle uses a short, critically damped spring with no bounce past the snap point. Dragging between snap points tracks your finger. Dragging past the top, or past the bottom when the sheet is not allowed to close, resists and springs back. A sheet that can close still follows your finger off the screen.
 
 The dimming fades with that drag until the lowest snap point, then stays fully dim. To keep it at full strength the whole time the sheet is visible:
 
@@ -120,6 +147,8 @@ SheetBehavior(scrimFollowsDrag = false)
 `scrimColor = Color.Unspecified` still removes the dimming.
 
 ## Keyboard
+
+![Chat with a sticky composer and keyboard-aware sheet expansion](docs/videos/chat.gif)
 
 Do not add `imePadding()` around the sheet. Atlas already keeps the sheet above the keyboard.
 
@@ -148,109 +177,98 @@ enableEdgeToEdge(
 
 The dimming covers the status bar and navigation bar, so the sheet and the screen read as one surface. The sheet's own color continues behind the navigation buttons. Content stays in the safe area.
 
-## A sheet inside a Fragment
+## AtlasSheet: a sheet inside your layout
 
-`AtlasSheet` stays in your composition. It opens when it appears, animates shut on `hide()`, and tells you when that animation has finished.
+Use `AtlasSheet` in a full-size `Box` alongside your Compose screen. It fills its parent,
+opens on mount by default, and animates closed when you call `hide()`. With
+`scrimColor = Color.Unspecified`, the background remains interactive outside the sheet.
+An inline sheet does not provide the separate-window focus isolation of `AtlasModalSheet`.
 
-```kotlin
-AtlasSheet(
-    state = rememberSheetState(initialSnapPoint = "medium"),
-    snapPoints = listOf(SheetSnapPoint.fraction("medium", .6f), SheetSnapPoint.expanded()),
-    onDismissed = { /* pop this screen after the sheet has closed */ },
-    footer = { OrderActions() },
-) {
-    OrderDetails()
-}
-```
+![Shared sheet resizing and scrolling behavior, shown in the modal demo](docs/videos/heavyContent.gif)
 
-Close it with `state.hide()`. `onDismissed` runs after the exit. Removing the Fragment yourself skips that animation.
-
-Mount it in a full-window container if the dimming should cover the screen behind it. The sheet handles Back while it is visible. Your navigation handles removing the Fragment. Don't also run a Fragment transition that slides the same view.
-
-For a host that starts hidden:
+*This recording shows the shared sheet surface in the modal demo; the inline variant uses
+that same resizing and scrolling implementation inside your layout.*
 
 ```kotlin
-val state = rememberSheetState(initiallyVisible = false)
-// later
-scope.launch { state.show() }
-```
+val state = rememberSheetState(initialSnapPoint = "peek")
+val scope = rememberCoroutineScope()
 
-## A panel over a live screen
-
-`AtlasSheetHost` does not open a new window, so the screen behind it still receives touches when you omit the dimming:
-
-```kotlin
 Box(Modifier.fillMaxSize()) {
-    ScreenBehind()
-    AtlasSheetHost(
+    MapScreen()
+    AtlasSheet(
         state = state,
-        snapPoints = snapPoints,
+        snapPoints = listOf(
+            SheetSnapPoint.fixed("peek", 220.dp),
+            SheetSnapPoint.expanded(),
+        ),
         scrimColor = Color.Unspecified,
-        header = { Text("Filters") },
+        header = { Text("Nearby places") },
+        footer = {
+            Button(onClick = { scope.launch { state.hide() } }) { Text("Close") }
+        },
     ) {
-        FilterList()
+        PlaceFilters()
     }
 }
 ```
 
-Watch `currentSnapPoint == null` if you want to remove the host after it closes.
+To open it later, use `rememberSheetState(initiallyVisible = false)` and call `state.show()`.
+Keep the sheet mounted to reopen it. If your navigation owns removal, perform that in
+`onDismissed` after closing. Removing the composable immediately skips its exit animation.
+
+### Using AtlasSheet as a Fragment root
+
+Use the same `AtlasSheet` inside a `ComposeView`. Tie the composition to the Fragment's
+view lifecycle, and have the close button call `hide()` before removing the Fragment:
+
+```kotlin
+class OrderSheetFragment : Fragment() {
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?,
+    ): View = ComposeView(requireContext()).apply {
+        // Define a stable ID in res/values/ids.xml for saved Compose state.
+        id = R.id.order_sheet_content
+        setViewCompositionStrategy(
+            ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed,
+        )
+        setContent {
+            val state = rememberSheetState(initialSnapPoint = "medium")
+            val scope = rememberCoroutineScope()
+            AtlasSheet(
+                state = state,
+                snapPoints = listOf(
+                    SheetSnapPoint.fraction("medium", 0.6f),
+                    SheetSnapPoint.expanded(),
+                ),
+                onDismissed = {
+                    parentFragmentManager.beginTransaction()
+                        .remove(this@OrderSheetFragment)
+                        .commit()
+                },
+                footer = {
+                    Button(onClick = { scope.launch { state.hide() } }) { Text("Done") }
+                },
+            ) {
+                OrderDetails()
+            }
+        }
+    }
+}
+```
+
+Mount the Fragment in a full-window container so the scrim can cover the background. For
+back-stack navigation, replace the removal callback with your navigation's pop operation.
+The sheet handles Back while visible. Avoid a second Fragment slide transition on the same view.
+See the runnable [Fragment sample](sample/src/main/java/dev/atlas/sheet/sample/FragmentDemoActivity.kt).
+
+`AtlasSheetHost` remains a lower-level public rendering API. Prefer `AtlasSheet` for inline
+usage with managed entry/exit and `onDismissed`.
 
 ## Stack sheets
 
-Pass the same `stackState = rememberSheetStackState()` instance to each `AtlasModalSheet`.
-Each modal uses its own state and snapPoints. Calling `show()` presents it above the others;
-calling `hide()` dismisses it without a separate visibility boolean. The custom stack
-example below adds cumulative recession with `Modifier.sheetStackEffect`.
-
-## Keep a flow from being dismissed
-
-```kotlin
-SheetBehavior(
-    dismissOnDrag = false,
-    dismissOnScrim = false,
-    dismissOnBack = false,
-)
-```
-
-The user cannot drag it away, tap the dimming, or press Back to close it. `state.hide()` still closes it when your own button says so.
-
-## Run the sample
-
-Open the project in Android Studio and run `sample` on Android 24+, with JDK 17 and Android SDK 35.
-
-```bash
-./gradlew :sample:assembleDebug :atlas-sheet:testDebugUnitTest
-```
-
-## License
-
-Apache 2.0. See [CHANGELOG](CHANGELOG.md), [architecture](docs/ARCHITECTURE.md), and [contributing](CONTRIBUTING.md).
-
-### Scroll handoff tuning
-
-Header drags resize the sheet with the body attached below the header: a normal
-`LazyColumn` preserves its first visible item and reveals more content below.
-Use `SheetBodyMode.Fill` for caller-owned lists. A `reverseLayout = true` list anchors
-its items to the bottom instead; use chronological items in a normal list for
-this top-attached expansion behavior.
-
-```kotlin
-SheetBehavior(
-    bubbleAtTop = true,             // New downward gesture at the top collapses
-    bubbleAtBottom = false,         // Upward gestures at the bottom do not expand
-    transferScrollFling = true,     // Preserve release speed after dragging the sheet
-    scrollFlingThreshold = 500f,    // Minimum release speed in dp/s
-    scrollFlingVelocityScale = .5f, // Scale sheet gesture release velocity (0..1)
-)
-```
-
-List fling momentum never initiates a sheet drag, regardless of these settings.
-`transferScrollFling` only controls release momentum for a gesture that already
-moved the sheet. A partially dragged sheet always settles to a detent. Header
-flicks are independent of these settings. Nested scrolling stops at the sheet
-bounds without engaging the header's rubber-band effect.
-
-### Custom stack effects
+![Three sheets recede cumulatively as new sheets open](docs/videos/stacked.gif)
 
 Share one `rememberSheetStackState()` between ordinary modal sheets. There is no stack
 composable, route registration, push/pop navigation, or second visibility boolean.
@@ -289,8 +307,8 @@ AtlasModalSheet(
   settled layers have depths 2, 1, 0; the example gives widths 88%, 94%, 100%.
   Opening a third sheet moves the back layer smoothly from 1 to 2. Dismissing or
   reversing the gesture updates every underlying layer from the actual positions.
-- Each sheet contributes zero while hidden, one at its smallest detent, clamped above
-  that detent. `coveredProgress` exposes only the immediately covering sheet's progress.
+- Each sheet contributes zero while hidden, one at its smallest snap point, clamped above
+  that snap point. `coveredProgress` exposes only the immediately covering sheet's progress.
   `depth` is the integer count above; `isTopmost` identifies the active layer.
 - Hidden mounted modals create no dialog and do not count toward depth. A shown modal
   joins at the top, remains through its completed exit, then unregisters. Showing an
@@ -309,8 +327,100 @@ AtlasModalSheet(
 - Sheets without `stackState` remain independent; `sheetStackEffect` is a no-op there.
   Share each stack only among modals in one host window. Separate stack instances do
   not coordinate. Inline/Fragment sheets are not enrolled in this modal coordinator.
-- Each remembered `SheetState` restores its visibility/detent after Activity recreation.
+- Each remembered `SheetState` restores its visibility/snap point after Activity recreation.
   Stack ordering itself is transient and rebuilt in composition order on restoration;
   this coordinator does not own or persist app navigation.
 
 The **Stacked sheets** sample uses three always-mounted modals with cumulative recession.
+
+## Common parameters
+
+These parameters are shared by `AtlasModalSheet` and `AtlasSheet`, except `stackState`.
+
+| Parameter | Default | When to change it |
+| --- | --- | --- |
+| `state` | Required for modal; remembered for inline | Hoist it to open, close, or change the snap point |
+| `snapPoints` | Required | Choose fixed, fractional, content-fit, or custom heights |
+| `onDismissed` | No-op | Update navigation or notify the parent after dismissal |
+| `header` / `footer` | `null` | Keep a title, actions, or chat composer outside the scrolling body |
+| `bodyMode` | `SheetBodyMode.Scroll` | Use `Fill` for caller-owned scrolling such as a `LazyColumn` |
+| `dragHandle` | `SheetDragHandle()` | Supply a custom composable or `null` to hide it |
+| `behavior` | `SheetBehavior()` | Configure dragging, dismissal, keyboard, or scroll handoff |
+| `maxWidth` / `topMargin` | `640.dp` / `24.dp` | Tune tablet width and space above the expanded sheet |
+| `containerColor` / `contentColor` | White / dark blue-gray | Apply your theme; custom content can read `LocalSheetContentColor` |
+| `scrimColor` | Black at 42% alpha | Tune dimming; `Color.Unspecified` removes the scrim and its hit target |
+| `shape` | Rounded top corners, `28.dp` | Customize the base surface shape |
+| `modifier` | `Modifier` | Customize the full host container |
+| `surfaceModifier` | `Modifier` | Customize the sheet surface, including stack effects |
+| `title` | `"Bottom sheet"` | Set the accessibility pane title; this does not render a visible header |
+| `stackState` | `null` (modal only) | Coordinate multiple modal sheets |
+
+Removing a modal's scrim does not make its separate window behave like an inline sheet.
+Choose `AtlasSheet` when you need interaction with the screen behind it.
+
+### Sticky header and footer
+
+![Chat body scrolls above a sticky composer](docs/videos/chat.gif)
+
+```kotlin
+AtlasModalSheet(
+    state = state,
+    snapPoints = listOf(SheetSnapPoint.expanded()),
+    bodyMode = SheetBodyMode.Fill,
+    header = { Text("Messages") },
+    footer = { ChatComposer() },
+) {
+    LazyColumn(Modifier.fillMaxSize()) {
+        items(messages, key = { it.id }) { MessageBubble(it) }
+    }
+}
+```
+
+### Keep a flow from being dismissed
+
+```kotlin
+SheetBehavior(
+    dismissOnDrag = false,
+    dismissOnScrim = false,
+    dismissOnBack = false,
+)
+```
+
+The user cannot drag it away, tap the dimming, or press Back to close it. `state.hide()` still closes it when your own button says so.
+
+### Scroll handoff tuning
+
+Header drags resize the sheet with the body attached below the header: a normal
+`LazyColumn` preserves its first visible item and reveals more content below.
+Use `SheetBodyMode.Fill` for caller-owned lists. A `reverseLayout = true` list anchors
+its items to the bottom instead; use chronological items in a normal list for
+this top-attached expansion behavior.
+
+```kotlin
+SheetBehavior(
+    bubbleAtTop = true,             // New downward gesture at the top collapses
+    bubbleAtBottom = false,         // Upward gestures at the bottom do not expand
+    transferScrollFling = true,     // Preserve release speed after dragging the sheet
+    scrollFlingThreshold = 500f,    // Minimum release speed in dp/s
+    scrollFlingVelocityScale = .5f, // Scale sheet gesture release velocity (0..1)
+)
+```
+
+List fling momentum never initiates a sheet drag, regardless of these settings.
+`transferScrollFling` only controls release momentum for a gesture that already
+moved the sheet. A partially dragged sheet always settles to a snap point. Header
+flicks are independent of these settings. Nested scrolling stops at the sheet
+bounds without engaging the header's rubber-band effect.
+
+
+## Run the sample
+
+Open the project in Android Studio and run `sample` on Android 24+, with JDK 17 and Android SDK 35.
+
+```bash
+./gradlew :sample:assembleDebug :atlas-sheet:testDebugUnitTest
+```
+
+## License
+
+Apache 2.0. See [CHANGELOG](CHANGELOG.md), [architecture](docs/ARCHITECTURE.md), and [contributing](CONTRIBUTING.md).

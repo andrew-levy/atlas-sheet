@@ -380,7 +380,6 @@ private fun PeopleSheet(state: SheetState, front: Boolean, onSelect: (Friend) ->
         modifier = modifier,
         behavior = SheetBehavior(
             keyboardBehavior = SheetKeyboardBehavior.Ignore,
-            expandBeforeScroll = false,
             dismissOnScrim = false,
         ),
         bodyMode = SheetBodyMode.Fill,
@@ -435,7 +434,6 @@ private fun PersonSheet(
         modifier = modifier,
         behavior = SheetBehavior(
             keyboardBehavior = SheetKeyboardBehavior.Ignore,
-            expandBeforeScroll = false,
             draggable = front,
             dismissOnScrim = false,
         ),
@@ -550,7 +548,7 @@ private fun ChatSheet(onDismissed: () -> Unit) {
         state = state,
         snapPoints = PeopleDetents,
         onDismissed = onDismissed,
-        behavior = SheetBehavior(keyboardBehavior = SheetKeyboardBehavior.Expand, expandBeforeScroll = false),
+        behavior = SheetBehavior(keyboardBehavior = SheetKeyboardBehavior.Expand),
         bodyMode = SheetBodyMode.Fill,
         title = "Friends",
         containerColor = colors.sheet,
@@ -665,7 +663,7 @@ private fun ContactSheet(friend: Friend, onNotify: () -> Unit, onDismissed: () -
         state = state,
         snapPoints = listOf(SheetSnapPoint.fraction("medium", 0.72f), SheetSnapPoint.expanded()),
         onDismissed = onDismissed,
-        behavior = SheetBehavior(keyboardBehavior = SheetKeyboardBehavior.Resize, expandBeforeScroll = false),
+        behavior = SheetBehavior(keyboardBehavior = SheetKeyboardBehavior.Resize),
         bodyMode = SheetBodyMode.Scroll,
         title = "Contact Info",
         containerColor = colors.sheet,

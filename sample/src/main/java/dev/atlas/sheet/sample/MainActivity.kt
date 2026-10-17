@@ -150,7 +150,6 @@ private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
     val behavior = remember(demo) {
         SheetBehavior(
             keyboardBehavior = if (demo == Demo.Chat || demo == Demo.Heavy) SheetKeyboardBehavior.Expand else SheetKeyboardBehavior.Resize,
-            expandBeforeScroll = false,
             dismissOnDrag = demo != Demo.Locked,
             dismissOnScrim = demo != Demo.Locked,
             dismissOnBack = demo != Demo.Locked,

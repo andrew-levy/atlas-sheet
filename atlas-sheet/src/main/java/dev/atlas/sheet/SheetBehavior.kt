@@ -24,8 +24,6 @@ public data class SheetBehavior(
     val dismissOnScrim: Boolean = true,
     val dismissOnBack: Boolean = true,
     val draggable: Boolean = true,
-    @Deprecated("Content now scrolls first. Use bubbleAtTop and bubbleAtBottom for new edge gestures.")
-    val expandBeforeScroll: Boolean = false,
     val keyboardBehavior: SheetKeyboardBehavior = SheetKeyboardBehavior.Resize,
     /** Fade the scrim with the drag until the lowest detent. Full strength above that. */
     val scrimFollowsDrag: Boolean = true,
