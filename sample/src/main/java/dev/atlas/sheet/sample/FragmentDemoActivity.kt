@@ -58,12 +58,12 @@ class RootSheetFragment : Fragment() {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 MaterialTheme {
-                    val state = rememberSheetState(initialDetent = "medium")
+                    val state = rememberSheetState(initialSnapPoint = "medium")
                     val scope = rememberCoroutineScope()
                     var text by remember { mutableStateOf("") }
                     AtlasSheet(
                         state = state,
-                        detents = listOf(SheetDetent.fraction("medium", .6f), SheetDetent.expanded()),
+                        snapPoints = listOf(SheetSnapPoint.fraction("medium", .6f), SheetSnapPoint.expanded()),
                         title = "Fragment sheet",
                         onDismissed = {
                             parentFragmentManager.beginTransaction().remove(this@RootSheetFragment).commit()

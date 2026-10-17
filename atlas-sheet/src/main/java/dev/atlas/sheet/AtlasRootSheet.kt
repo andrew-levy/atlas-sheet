@@ -23,7 +23,7 @@ import kotlinx.coroutines.launch
 @Composable
 public fun AtlasSheet(
     state: SheetState = rememberSheetState(),
-    detents: List<SheetDetent>,
+    snapPoints: List<SheetSnapPoint>,
     onDismissed: () -> Unit = {},
     modifier: Modifier = Modifier,
     behavior: SheetBehavior = SheetBehavior(),
@@ -45,8 +45,8 @@ public fun AtlasSheet(
     val dismissed by rememberUpdatedState(onDismissed)
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
-    LaunchedEffect(state.targetDetent, state.hasPresented) {
-        if (state.targetDetent == null && state.hasPresented) {
+    LaunchedEffect(state.targetSnapPoint, state.hasPresented) {
+        if (state.targetSnapPoint == null && state.hasPresented) {
             focus.clearFocus(force = true)
             keyboard?.hide()
         }
@@ -57,7 +57,7 @@ public fun AtlasSheet(
         snapshotFlow { state.releaseDismissed(dismissSlop) }.collect { hidden -> if (hidden) dismissed() }
     }
     AtlasSheetHost(
-        state, detents, modifier, behavior, bodyMode, title, maxWidth, topMargin,
+        state, snapPoints, modifier, behavior, bodyMode, title, maxWidth, topMargin,
         containerColor, contentColor, scrimColor, shape, dragHandle, header, footer, surfaceModifier, content,
     )
 }

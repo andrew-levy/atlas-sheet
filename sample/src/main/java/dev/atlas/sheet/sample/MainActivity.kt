@@ -99,7 +99,7 @@ private fun Gallery(autoOpen: Demo?) {
                 Spacer(Modifier.height(14.dp))
                 Text("A sheet for\nevery surface.", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = Ink)
                 Spacer(Modifier.height(12.dp))
-                Text("Named detents. Sticky chrome.\nContent that stays in your control.", color = Color(0xFF68728A))
+                Text("Named snapPoints. Sticky chrome.\nContent that stays in your control.", color = Color(0xFF68728A))
                 Spacer(Modifier.height(14.dp))
             }
             items(Demo.entries) { demo ->
@@ -142,14 +142,14 @@ private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
     }
     val scope = rememberCoroutineScope()
     val initial = if (demo == Demo.Fit) "content" else if (demo == Demo.Persistent) "peek" else "medium"
-    val state = rememberSheetState(initialDetent = initial)
-    val detents = remember(demo) {
-        if (demo == Demo.Fit) listOf(SheetDetent.content(), SheetDetent.expanded())
-        else listOf(SheetDetent.fixed("peek", 260.dp), SheetDetent.fraction("medium", 0.6f), SheetDetent.expanded())
+    val state = rememberSheetState(initialSnapPoint = initial)
+    val snapPoints = remember(demo) {
+        if (demo == Demo.Fit) listOf(SheetSnapPoint.fitContent(), SheetSnapPoint.expanded())
+        else listOf(SheetSnapPoint.fixed("peek", 260.dp), SheetSnapPoint.fraction("medium", 0.6f), SheetSnapPoint.expanded())
     }
     val behavior = remember(demo) {
         SheetBehavior(
-            imePolicy = if (demo == Demo.Chat || demo == Demo.Heavy) SheetImePolicy.Expand else SheetImePolicy.Resize,
+            keyboardBehavior = if (demo == Demo.Chat || demo == Demo.Heavy) SheetKeyboardBehavior.Expand else SheetKeyboardBehavior.Resize,
             expandBeforeScroll = false,
             dismissOnDrag = demo != Demo.Locked,
             dismissOnScrim = demo != Demo.Locked,
@@ -176,14 +176,14 @@ private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
                 Column(Modifier.weight(1f)) {
                     Text(demo.label, modifier = Modifier.testTag("sheet-title"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     val status = if (demo == Demo.Heavy) heavyThread?.let { "%,d messages".format(it.size) } ?: "Loading thread…" else null
-                    Text(listOfNotNull(state.currentDetent ?: "Opening", status).joinToString(" • "), color = Accent, style = MaterialTheme.typography.labelMedium, modifier = Modifier.testTag("sheet-status"))
+                    Text(listOfNotNull(state.currentSnapPoint ?: "Opening", status).joinToString(" • "), color = Accent, style = MaterialTheme.typography.labelMedium, modifier = Modifier.testTag("sheet-status"))
                 }
                 TextButton(onClick = { scope.launch { state.hide() } }, modifier = Modifier.testTag("close")) { Text("Close") }
             }
             if (demo != Demo.Fit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("peek", "medium", "expanded").forEach { id ->
-                        FilterChip(selected = state.currentDetent == id, onClick = { scope.launch { state.animateTo(id) } }, label = { Text(id.replaceFirstChar { it.uppercase() }) }, modifier = Modifier.testTag("detent-$id"))
+                        FilterChip(selected = state.currentSnapPoint == id, onClick = { scope.launch { state.animateTo(id) } }, label = { Text(id.replaceFirstChar { it.uppercase() }) }, modifier = Modifier.testTag("detent-$id"))
                     }
                 }
             }
@@ -251,10 +251,10 @@ private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
     }
     val mode = if (demo == Demo.Fit || demo == Demo.Form) SheetBodyMode.Scroll else SheetBodyMode.Fill
     if (demo == Demo.Persistent) {
-        AtlasSheetHost(state, detents, behavior = behavior, bodyMode = mode, title = demo.label, scrimColor = Color.Unspecified, header = header, footer = footer, content = body)
-        LaunchedEffect(state) { snapshotFlow { state.currentDetent }.collect { if (it == null) close() } }
+        AtlasSheetHost(state, snapPoints, behavior = behavior, bodyMode = mode, title = demo.label, scrimColor = Color.Unspecified, header = header, footer = footer, content = body)
+        LaunchedEffect(state) { snapshotFlow { state.currentSnapPoint }.collect { if (it == null) close() } }
     } else {
-        AtlasModalSheet(state, detents, close, behavior = behavior, bodyMode = mode, title = demo.label, header = header, footer = footer, content = body)
+        AtlasModalSheet(state, snapPoints, close, behavior = behavior, bodyMode = mode, title = demo.label, header = header, footer = footer, content = body)
     }
 }
 
@@ -263,12 +263,12 @@ private val Muted = Color(0xFF68728A)
 /** App-defined recession; Atlas only supplies stack lifecycle and gesture progress. */
 @Composable
 private fun StackedSheets(close: () -> Unit) {
-    val stack = rememberSheetStackState()
+    val stackState = rememberSheetStackState()
     val plans = rememberSheetState()
     val details = rememberSheetState(initiallyVisible = false)
-    val review = rememberSheetState(initialDetent = "content", initiallyVisible = false)
+    val review = rememberSheetState(initialSnapPoint = "content", initiallyVisible = false)
     val scope = rememberCoroutineScope()
-    val effect = Modifier.atlasStackEffect { entry ->
+    val effect = Modifier.sheetStackEffect { entry ->
         val depth = entry.animatedDepth
         scaleX = (1f - 0.06f * depth).coerceAtLeast(0.7f)
         scaleY = (1f - 0.04f * depth).coerceAtLeast(0.8f)
@@ -279,9 +279,9 @@ private fun StackedSheets(close: () -> Unit) {
     val closeDetails: () -> Unit = { scope.launch { details.hide() }; Unit }
     val closeReview: () -> Unit = { scope.launch { review.hide() }; Unit }
     AtlasModalSheet(
-        state = plans, stack = stack,
-        detents = listOf(SheetDetent.fraction("expanded", 0.92f)),
-        surfaceModifier = effect, title = "Plans", onDismissRequest = close,
+        state = plans, stackState = stackState,
+        snapPoints = listOf(SheetSnapPoint.fraction("expanded", 0.92f)),
+        surfaceModifier = effect, title = "Plans", onDismissed = close,
         header = { StackHeader("Plans", "This week", "stack-close-base", Modifier.testTag("stack-base-title"), closePlans) },
         footer = { StackFooter { Text("3 plans", color = Muted, modifier = Modifier.testTag("footer")) } },
     ) {
@@ -294,8 +294,8 @@ private fun StackedSheets(close: () -> Unit) {
         }
     }
     AtlasModalSheet(
-        state = details, stack = stack,
-        detents = listOf(SheetDetent.fraction("expanded", 0.58f)),
+        state = details, stackState = stackState,
+        snapPoints = listOf(SheetSnapPoint.fraction("expanded", 0.58f)),
         surfaceModifier = effect, title = "Atlas mobile",
         header = { StackHeader("Atlas mobile", "In progress", "stack-close-details", Modifier.testTag("stack-details-title"), closeDetails) },
         footer = { StackFooter {
@@ -310,8 +310,8 @@ private fun StackedSheets(close: () -> Unit) {
         }
     }
     AtlasModalSheet(
-        state = review, stack = stack,
-        detents = listOf(SheetDetent.content()), surfaceModifier = effect, title = "Request review",
+        state = review, stackState = stackState,
+        snapPoints = listOf(SheetSnapPoint.fitContent()), surfaceModifier = effect, title = "Request review",
         header = { StackHeader("Request review", "Two reviewers", "stack-close-confirm", Modifier.testTag("stack-confirm-title"), closeReview) },
         footer = { StackFooter {
             Button(onClick = closeReview, modifier = Modifier.fillMaxWidth().testTag("stack-send-review")) { Text("Send request") }
@@ -453,7 +453,7 @@ private suspend fun recordOpenTiming(demo: Demo, state: dev.atlas.sheet.SheetSta
             frames++
         }
         previous = now
-        if (firstMotion >= 0 && state.currentDetent != null && !state.isAnimationRunning) break
+        if (firstMotion >= 0 && state.currentSnapPoint != null && !state.isAnimationRunning) break
     }
     OpenTimings.results[demo.name] = OpenTiming(firstMotion - openedAt, previous - openedAt, longest, frames)
 }

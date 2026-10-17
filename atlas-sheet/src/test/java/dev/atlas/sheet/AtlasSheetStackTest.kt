@@ -11,16 +11,16 @@ class AtlasSheetStackTest {
     }
 
     @Test fun cumulativeDepthTracksEveryCoveringSheetAndReversal() {
-        val stack = SheetStackState()
+        val stackState = SheetStackState()
         val base = sheet()
         val middle = sheet()
         val top = sheet()
-        stack.register(base)
-        stack.register(middle)
-        val baseInfo = AtlasSheetStackEntry(stack, base)
-        val middleInfo = AtlasSheetStackEntry(stack, middle)
+        stackState.register(base)
+        stackState.register(middle)
+        val baseInfo = SheetStackEntry(stackState, base)
+        val middleInfo = SheetStackEntry(stackState, middle)
         middle.anchored.dispatchRawDelta(-400f)
-        stack.register(top)
+        stackState.register(top)
         assertEquals(1f, baseInfo.animatedDepth, 0f)
         top.anchored.dispatchRawDelta(-200f)
         assertEquals(1.5f, baseInfo.animatedDepth, .001f)
@@ -36,24 +36,24 @@ class AtlasSheetStackTest {
     }
 
     @Test fun removalAndReopeningUsePresentationOrder() {
-        val stack = SheetStackState()
+        val stackState = SheetStackState()
         val first = sheet()
         val second = sheet()
-        stack.register(first)
-        stack.register(second)
-        val firstInfo = AtlasSheetStackEntry(stack, first)
-        val secondInfo = AtlasSheetStackEntry(stack, second)
+        stackState.register(first)
+        stackState.register(second)
+        val firstInfo = SheetStackEntry(stackState, first)
+        val secondInfo = SheetStackEntry(stackState, second)
         assertEquals(1, firstInfo.depth)
-        stack.unregister(first)
+        stackState.unregister(first)
         assertEquals(0, firstInfo.depth)
         assertFalse(firstInfo.isTopmost)
         assertTrue(secondInfo.isTopmost)
-        stack.register(first)
+        stackState.register(first)
         assertTrue(firstInfo.isTopmost)
         assertEquals(1, secondInfo.depth)
-        stack.unregister(first)
-        stack.unregister(first)
-        assertEquals(1, stack.size)
+        stackState.unregister(first)
+        stackState.unregister(first)
+        assertEquals(1, stackState.size)
     }
 
     @Test fun independentStacksDoNotAffectEachOther() {
@@ -64,15 +64,15 @@ class AtlasSheetStackTest {
         one.register(first)
         two.register(second)
         second.anchored.dispatchRawDelta(-400f)
-        assertEquals(0f, AtlasSheetStackEntry(one, first).animatedDepth, 0f)
+        assertEquals(0f, SheetStackEntry(one, first).animatedDepth, 0f)
     }
 
     @Test(expected = IllegalStateException::class)
     fun sameStateCannotBeRegisteredTwice() {
-        val stack = SheetStackState()
+        val stackState = SheetStackState()
         val state = sheet()
-        stack.register(state)
-        stack.register(state)
+        stackState.register(state)
+        stackState.register(state)
     }
 
     @Test fun coverageIsBoundedAndHandlesZeroHeight() {

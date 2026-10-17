@@ -2,7 +2,7 @@ package dev.atlas.sheet
 
 import androidx.compose.runtime.Immutable
 
-public enum class SheetImePolicy {
+public enum class SheetKeyboardBehavior {
     /** Leave sizing unchanged; intended for sheets without text entry. */
     Ignore,
     /** Recompute available height above the IME; retain the selected detent. */
@@ -26,7 +26,7 @@ public data class SheetBehavior(
     val draggable: Boolean = true,
     @Deprecated("Content now scrolls first. Use bubbleAtTop and bubbleAtBottom for new edge gestures.")
     val expandBeforeScroll: Boolean = false,
-    val imePolicy: SheetImePolicy = SheetImePolicy.Resize,
+    val keyboardBehavior: SheetKeyboardBehavior = SheetKeyboardBehavior.Resize,
     /** Fade the scrim with the drag until the lowest detent. Full strength above that. */
     val scrimFollowsDrag: Boolean = true,
     /** Preserve release velocity only for a gesture that already dragged the sheet. */

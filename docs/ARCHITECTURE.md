@@ -8,7 +8,7 @@ anchors into deterministic aliases. The first declared detent wins a collision. 
 positions are recalculated on content, chrome, window and IME changes; IDs are stable.
 
 `SheetState` wraps Foundation's `AnchoredDraggableState`, preserving its mutation arbitration
-and animation cancellation. `currentDetent` means settled, `targetDetent` means in flight,
+and animation cancellation. `currentSnapPoint` means settled, `targetSnapPoint` means in flight,
 and `progress` is continuous visible height. A hidden anchor is excluded from user dragging
 when drag dismissal is disabled. Explicit `hide()` temporarily adds it. State saving records
 a detent ID, not stale pixels. A removed ID falls back to the smallest surviving detent.
@@ -17,7 +17,7 @@ The handle and header use `anchoredDraggable`. The body participates in nested s
 upward input expands the sheet before the child scrolls by default; downward input is given
 to the child first, and only its unconsumed distance moves the sheet. Setting
 `expandBeforeScroll = false` lets the child scroll first in both directions. Vertical input
-alone is consumed; horizontal gestures are left to children. Between detents the sheet tracks
+alone is consumed; horizontal gestures are left to children. Between snapPoints the sheet tracks
 the finger. Past the top, and past the lowest detent when drag dismissal is off, leftover
 drag uses the iOS scroll-view rubber band (coefficient 0.55). Upward, the sheet grows from
 the top: the bottom edge and footer stay on the screen, and the header and body move up with
@@ -32,10 +32,10 @@ above it.
 The layout gives the header and footer their own space and allocates the remaining bounded
 viewport to the body. `Scroll` mode measures finite body content inside a library-owned
 vertical scroll container. Its natural height remains observable when the sheet clips its
-viewport, enabling live content detents without duplicate composition. `Fill` mode delegates
+viewport, enabling live content snapPoints without duplicate composition. `Fill` mode delegates
 scroll ownership to the caller and is appropriate for lazy/reverse chat lists. Atlas never
 asks a lazy list for intrinsic measurements, nor pretends to know the height of uncomposed
-items. Use numeric or custom detents for `Fill`.
+items. Use numeric or custom snap points for `Fill`.
 
 Available height excludes top safe areas, the configured top margin, and navigation bars.
 IME policies use the maximum of navigation-bar and keyboard insets, not their sum. `Resize`

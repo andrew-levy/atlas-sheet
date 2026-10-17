@@ -22,9 +22,9 @@ class SheetMotionTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
     @Test fun mountedModalsAccumulateDepthInterruptExitAndReopen() {
-        lateinit var stack: SheetStackState
-        lateinit var base: AtlasSheetStackEntry
-        lateinit var middle: AtlasSheetStackEntry
+        lateinit var stackState: SheetStackState
+        lateinit var base: SheetStackEntry
+        lateinit var middle: SheetStackEntry
         lateinit var detail: SheetState
         lateinit var review: SheetState
         lateinit var scope: CoroutineScope
@@ -32,31 +32,31 @@ class SheetMotionTest {
         var middleDepth = 0f
         var dismissals = 0
         compose.runOnUiThread { compose.activity.setContent {
-            stack = rememberSheetStackState()
+            stackState = rememberSheetStackState()
             scope = rememberCoroutineScope()
             val first = rememberSheetState()
             detail = rememberSheetState(initiallyVisible = false)
             review = rememberSheetState(initiallyVisible = false)
-            AtlasModalSheet(first, listOf(SheetDetent.expanded()), stack = stack,
-                surfaceModifier = Modifier.atlasStackEffect {
+            AtlasModalSheet(first, listOf(SheetSnapPoint.expanded()), stackState = stackState,
+                surfaceModifier = Modifier.sheetStackEffect {
                     baseDepth = it.animatedDepth
                     scaleX = 1f - .06f * baseDepth
                 }) {
-                base = requireNotNull(LocalAtlasSheetStackEntry.current)
+                base = requireNotNull(LocalSheetStackEntry.current)
                 Spacer(Modifier.height(120.dp).testTag("stack-first"))
             }
-            AtlasModalSheet(detail, listOf(SheetDetent.fraction("expanded", .6f)), stack = stack,
-                surfaceModifier = Modifier.atlasStackEffect { middleDepth = it.animatedDepth }) {
-                middle = requireNotNull(LocalAtlasSheetStackEntry.current)
+            AtlasModalSheet(detail, listOf(SheetSnapPoint.fraction("expanded", .6f)), stackState = stackState,
+                surfaceModifier = Modifier.sheetStackEffect { middleDepth = it.animatedDepth }) {
+                middle = requireNotNull(LocalSheetStackEntry.current)
                 Spacer(Modifier.height(120.dp).testTag("stack-second"))
             }
-            AtlasModalSheet(review, listOf(SheetDetent.fraction("expanded", .4f)),
-                onDismissRequest = { dismissals++ }, stack = stack) {
+            AtlasModalSheet(review, listOf(SheetSnapPoint.fraction("expanded", .4f)),
+                onDismissed = { dismissals++ }, stackState = stackState) {
                 Spacer(Modifier.height(120.dp).testTag("stack-third"))
             }
         } }
         compose.waitForIdle()
-        assertEquals(1, stack.size)
+        assertEquals(1, stackState.size)
         compose.onNodeWithTag("stack-second").assertDoesNotExist()
         compose.onNodeWithTag("stack-third").assertDoesNotExist()
         compose.runOnUiThread { scope.launch { detail.show() } }
@@ -64,7 +64,7 @@ class SheetMotionTest {
         assertEquals(1f, baseDepth, .01f)
         compose.runOnUiThread { scope.launch { review.show() } }
         compose.waitForIdle()
-        assertEquals(3, stack.size)
+        assertEquals(3, stackState.size)
         assertEquals(2f, baseDepth, .01f)
         assertEquals(1f, middleDepth, .01f)
         compose.mainClock.autoAdvance = false
@@ -73,7 +73,7 @@ class SheetMotionTest {
         compose.waitForIdle()
         assertTrue(baseDepth > 1f && baseDepth < 2f)
         assertEquals(baseDepth - 1f, middleDepth, .01f)
-        assertEquals(3, stack.size)
+        assertEquals(3, stackState.size)
         compose.runOnUiThread { scope.launch { review.show() } }
         compose.mainClock.autoAdvance = true
         compose.waitForIdle()
@@ -83,18 +83,18 @@ class SheetMotionTest {
             compose.runOnUiThread { scope.launch { review.hide() } }
             compose.waitForIdle()
             assertEquals(it + 1, dismissals)
-            assertEquals(2, stack.size)
+            assertEquals(2, stackState.size)
             compose.onNodeWithTag("stack-third").assertDoesNotExist()
             assertEquals(1f, baseDepth, .01f)
             assertTrue(middle.isTopmost)
             compose.runOnUiThread { scope.launch { review.show() } }
             compose.waitForIdle()
-            assertEquals(3, stack.size)
+            assertEquals(3, stackState.size)
             assertEquals(2f, baseDepth, .01f)
         }
         compose.runOnUiThread { scope.launch { review.hide(); detail.hide() } }
         compose.waitForIdle()
-        assertEquals(1, stack.size)
+        assertEquals(1, stackState.size)
         assertEquals(0f, baseDepth, .01f)
         assertTrue(base.isTopmost)
     }
@@ -105,8 +105,8 @@ class SheetMotionTest {
         compose.runOnUiThread { compose.activity.setContent {
             state = rememberSheetState("medium")
             list = androidx.compose.foundation.lazy.rememberLazyListState(2)
-            AtlasSheet(state, listOf(SheetDetent.fraction("small", .25f),
-                SheetDetent.fraction("medium", .6f), SheetDetent.expanded()),
+            AtlasSheet(state, listOf(SheetSnapPoint.fraction("small", .25f),
+                SheetSnapPoint.fraction("medium", .6f), SheetSnapPoint.expanded()),
                 bodyMode = SheetBodyMode.Fill,
                 behavior = SheetBehavior(dismissOnDrag = false)) {
                 androidx.compose.foundation.lazy.LazyColumn(state = list,
@@ -128,7 +128,7 @@ class SheetMotionTest {
             swipeDown(startY = height * .1f, endY = height * .9f, durationMillis = 500)
         }
         compose.waitForIdle()
-        assertEquals("small", state.currentDetent)
+        assertEquals("small", state.currentSnapPoint)
     }
 
     @Test fun midScrolledContentTravelsWithHeaderDuringExpansion() {
@@ -139,7 +139,7 @@ class SheetMotionTest {
             state = rememberSheetState("medium", tween(320))
             scope = rememberCoroutineScope()
             list = androidx.compose.foundation.lazy.rememberLazyListState(20)
-            AtlasSheet(state, listOf(SheetDetent.fraction("medium", .5f), SheetDetent.expanded()),
+            AtlasSheet(state, listOf(SheetSnapPoint.fraction("medium", .5f), SheetSnapPoint.expanded()),
                 bodyMode = SheetBodyMode.Fill,
                 header = { Spacer(Modifier.fillMaxWidth().height(48.dp).testTag("moving-header")) }) {
                 androidx.compose.foundation.lazy.LazyColumn(state = list, modifier = Modifier.fillMaxSize()) {
@@ -167,8 +167,8 @@ class SheetMotionTest {
         compose.runOnUiThread { compose.activity.setContent {
             AtlasModalSheet(
                 state = rememberSheetState(),
-                detents = listOf(SheetDetent.expanded()),
-                onDismissRequest = {},
+                snapPoints = listOf(SheetSnapPoint.expanded()),
+                onDismissed = {},
             ) {
                 val view = androidx.compose.ui.platform.LocalView.current
                 SideEffect {
@@ -208,7 +208,7 @@ class SheetMotionTest {
             Box(Modifier.fillMaxSize().testTag("inset-host")) {
                 AtlasSheet(
                     state = rememberSheetState(),
-                    detents = listOf(SheetDetent.fraction("expanded", .5f)),
+                    snapPoints = listOf(SheetSnapPoint.fraction("expanded", .5f)),
                     title = "inset test",
                 ) { Spacer(Modifier.height(120.dp)) }
             }
@@ -231,7 +231,7 @@ class SheetMotionTest {
         compose.runOnUiThread { compose.activity.setContent {
             state = rememberSheetState("medium", tween(320), initiallyVisible = false)
             scope = rememberCoroutineScope()
-            AtlasSheet(state, listOf(SheetDetent.fraction("medium", .6f)), onDismissed = { dismissed++ }) {
+            AtlasSheet(state, listOf(SheetSnapPoint.fraction("medium", .6f)), onDismissed = { dismissed++ }) {
                 DisposableEffect(Unit) { compositions++; onDispose {} }
                 Spacer(Modifier.height(120.dp))
             }
@@ -262,7 +262,7 @@ class SheetMotionTest {
         compose.mainClock.advanceTimeBy(600)
         compose.waitForIdle()
         assertEquals(1, dismissed)
-        assertEquals("medium", state.currentDetent)
+        assertEquals("medium", state.currentSnapPoint)
         assertEquals("Body remains mounted across hide/show", 1, compositions)
     }
 
@@ -274,7 +274,7 @@ class SheetMotionTest {
         compose.runOnUiThread { compose.activity.setContent {
             state = rememberSheetState("medium", tween(320), initiallyVisible = false)
             scope = rememberCoroutineScope()
-            AtlasSheet(state, listOf(SheetDetent.fraction("medium", .6f)), onDismissed = { dismissed++ }) {
+            AtlasSheet(state, listOf(SheetSnapPoint.fraction("medium", .6f)), onDismissed = { dismissed++ }) {
                 Spacer(Modifier.height(120.dp))
             }
         } }
@@ -300,7 +300,7 @@ class SheetMotionTest {
         var extra by mutableStateOf(false)
         compose.runOnUiThread { compose.activity.setContent {
             state = rememberSheetState("content", tween(320))
-            AtlasSheet(state, listOf(SheetDetent.content()),
+            AtlasSheet(state, listOf(SheetSnapPoint.fitContent()),
                 header = { Spacer(Modifier.fillMaxWidth().height(48.dp).testTag("motion-header")) }) {
                 Spacer(Modifier.height(if (extra) 320.dp else 80.dp))
             }

@@ -88,8 +88,8 @@ import dev.atlas.sheet.AtlasModalSheet
 import dev.atlas.sheet.AtlasSheetHost
 import dev.atlas.sheet.SheetBehavior
 import dev.atlas.sheet.SheetBodyMode
-import dev.atlas.sheet.SheetDetent
-import dev.atlas.sheet.SheetImePolicy
+import dev.atlas.sheet.SheetSnapPoint
+import dev.atlas.sheet.SheetKeyboardBehavior
 import dev.atlas.sheet.SheetState
 import dev.atlas.sheet.rememberSheetState
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -185,9 +185,9 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     else -> null
 }
 private val PeopleDetents = listOf(
-    SheetDetent.fixed("peek", 340.dp),
-    SheetDetent.fraction("medium", 0.56f),
-    SheetDetent.expanded(),
+    SheetSnapPoint.fixed("peek", 340.dp),
+    SheetSnapPoint.fraction("medium", 0.56f),
+    SheetSnapPoint.expanded(),
 )
 
 /**
@@ -232,8 +232,8 @@ internal fun FindMyApp() {
     ) {
         CompositionLocalProvider(LocalFindColors provides colors, LocalContentColor provides colors.ink) {
         val scope = rememberCoroutineScope()
-        val people = rememberSheetState(initialDetent = "medium", initiallyVisible = false)
-        val personState = rememberSheetState(initialDetent = "content", initiallyVisible = false)
+        val people = rememberSheetState(initialSnapPoint = "medium", initiallyVisible = false)
+        val personState = rememberSheetState(initialSnapPoint = "content", initiallyVisible = false)
         var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
         var chatOpen by rememberSaveable { mutableStateOf(false) }
         var contactFor by rememberSaveable { mutableStateOf<String?>(null) }
@@ -376,10 +376,10 @@ private fun PeopleSheet(state: SheetState, front: Boolean, onSelect: (Friend) ->
     val colors = findColors()
     AtlasSheetHost(
         state = state,
-        detents = PeopleDetents,
+        snapPoints = PeopleDetents,
         modifier = modifier,
         behavior = SheetBehavior(
-            imePolicy = SheetImePolicy.Ignore,
+            keyboardBehavior = SheetKeyboardBehavior.Ignore,
             expandBeforeScroll = false,
             dismissOnScrim = false,
         ),
@@ -424,17 +424,17 @@ private fun PersonSheet(
     LaunchedEffect(friend.id) { state.show("content") }
     LaunchedEffect(state) {
         var seen = false
-        snapshotFlow { Triple(state.isVisible, state.currentDetent, state.isAnimationRunning) }.collect { (visible, detent, running) ->
+        snapshotFlow { Triple(state.isVisible, state.currentSnapPoint, state.isAnimationRunning) }.collect { (visible, detent, running) ->
             if (visible) seen = true
             else if (seen && detent == null && !running) onClosed()
         }
     }
     AtlasSheetHost(
         state = state,
-        detents = listOf(SheetDetent.content(), SheetDetent.expanded()),
+        snapPoints = listOf(SheetSnapPoint.fitContent(), SheetSnapPoint.expanded()),
         modifier = modifier,
         behavior = SheetBehavior(
-            imePolicy = SheetImePolicy.Ignore,
+            keyboardBehavior = SheetKeyboardBehavior.Ignore,
             expandBeforeScroll = false,
             draggable = front,
             dismissOnScrim = false,
@@ -528,7 +528,7 @@ private val nearbyPlaces = listOf("Dunkin'" to "0.2 mi", "Food Lion" to "0.6 mi"
 private fun ChatSheet(onDismissed: () -> Unit) {
     val colors = findColors()
     val scope = rememberCoroutineScope()
-    val state = rememberSheetState(initialDetent = "medium")
+    val state = rememberSheetState(initialSnapPoint = "medium")
     val list = rememberLazyListState()
     var draft by rememberSaveable { mutableStateOf("") }
     var history by remember { mutableStateOf<List<ChatLine>?>(null) }
@@ -548,9 +548,9 @@ private fun ChatSheet(onDismissed: () -> Unit) {
     }
     AtlasModalSheet(
         state = state,
-        detents = PeopleDetents,
-        onDismissRequest = onDismissed,
-        behavior = SheetBehavior(imePolicy = SheetImePolicy.Expand, expandBeforeScroll = false),
+        snapPoints = PeopleDetents,
+        onDismissed = onDismissed,
+        behavior = SheetBehavior(keyboardBehavior = SheetKeyboardBehavior.Expand, expandBeforeScroll = false),
         bodyMode = SheetBodyMode.Fill,
         title = "Friends",
         containerColor = colors.sheet,
@@ -658,14 +658,14 @@ private fun chatHistory(): List<ChatLine> {
 private fun ContactSheet(friend: Friend, onNotify: () -> Unit, onDismissed: () -> Unit, onProgress: (Float) -> Unit = {}) {
     val colors = findColors()
     val scope = rememberCoroutineScope()
-    val state = rememberSheetState(initialDetent = "medium")
+    val state = rememberSheetState(initialSnapPoint = "medium")
     val fields = listOf("Mobile", "Email", "Address", "Note", "Relationship", "Nickname")
     SideEffect { onProgress(state.progress) }
     AtlasModalSheet(
         state = state,
-        detents = listOf(SheetDetent.fraction("medium", 0.72f), SheetDetent.expanded()),
-        onDismissRequest = onDismissed,
-        behavior = SheetBehavior(imePolicy = SheetImePolicy.Resize, expandBeforeScroll = false),
+        snapPoints = listOf(SheetSnapPoint.fraction("medium", 0.72f), SheetSnapPoint.expanded()),
+        onDismissed = onDismissed,
+        behavior = SheetBehavior(keyboardBehavior = SheetKeyboardBehavior.Resize, expandBeforeScroll = false),
         bodyMode = SheetBodyMode.Scroll,
         title = "Contact Info",
         containerColor = colors.sheet,
@@ -715,12 +715,12 @@ private fun ContactSheet(friend: Friend, onNotify: () -> Unit, onDismissed: () -
 private fun NotifySheet(friend: Friend, onDismissed: () -> Unit, onProgress: (Float) -> Unit = {}) {
     val colors = findColors()
     val scope = rememberCoroutineScope()
-    val state = rememberSheetState(initialDetent = "content")
+    val state = rememberSheetState(initialSnapPoint = "content")
     SideEffect { onProgress(state.progress) }
     AtlasModalSheet(
         state = state,
-        detents = listOf(SheetDetent.content()),
-        onDismissRequest = onDismissed,
+        snapPoints = listOf(SheetSnapPoint.fitContent()),
+        onDismissed = onDismissed,
         title = "Notify Me",
         containerColor = colors.sheet,
         contentColor = colors.ink,
@@ -756,12 +756,12 @@ private fun NotifySheet(friend: Friend, onDismissed: () -> Unit, onProgress: (Fl
 private fun StopSharingSheet(friend: Friend, onDismissed: () -> Unit, onProgress: (Float) -> Unit = {}) {
     val colors = findColors()
     val scope = rememberCoroutineScope()
-    val state = rememberSheetState(initialDetent = "content")
+    val state = rememberSheetState(initialSnapPoint = "content")
     SideEffect { onProgress(state.progress) }
     AtlasModalSheet(
         state = state,
-        detents = listOf(SheetDetent.content()),
-        onDismissRequest = onDismissed,
+        snapPoints = listOf(SheetSnapPoint.fitContent()),
+        onDismissed = onDismissed,
         behavior = SheetBehavior(dismissOnDrag = false, dismissOnScrim = false, dismissOnBack = false),
         title = "Stop Sharing Location",
         containerColor = colors.sheet,

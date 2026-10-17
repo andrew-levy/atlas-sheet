@@ -152,7 +152,7 @@ class SheetUiTest {
                     val state = rememberSheetState()
                     AtlasSheetHost(
                         state = state,
-                        detents = listOf(SheetDetent.expanded()),
+                        snapPoints = listOf(SheetSnapPoint.expanded()),
                         topMargin = 0.dp,
                         scrimColor = Color.Unspecified,
                         header = { Spacer(Modifier.height(240.dp)) },

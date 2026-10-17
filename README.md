@@ -27,17 +27,17 @@ To try a local build instead, run `./gradlew :atlas-sheet:publishToMavenLocal` a
 ## Show a sheet
 
 ```kotlin
-val state = rememberSheetState(initialDetent = "medium")
+val state = rememberSheetState(initialSnapPoint = "medium")
 val scope = rememberCoroutineScope()
 
 AtlasModalSheet(
     state = state,
-    detents = listOf(
-        SheetDetent.fixed("peek", 260.dp),
-        SheetDetent.fraction("medium", 0.6f),
-        SheetDetent.expanded(),
+    snapPoints = listOf(
+        SheetSnapPoint.fixed("peek", 260.dp),
+        SheetSnapPoint.fraction("medium", 0.6f),
+        SheetSnapPoint.expanded(),
     ),
-    onDismissRequest = { open = false },
+    onDismissed = { open = false },
     header = { Text("Order") },
     footer = {
         Button(onClick = { scope.launch { state.hide() } }) { Text("Done") }
@@ -47,7 +47,7 @@ AtlasModalSheet(
 }
 ```
 
-Keep `AtlasModalSheet` mounted and control visibility with `state.show()` / `state.hide()`. Its dialog is removed after dismissal. `onDismissRequest` is optional; callers may still remove the composable in that callback.
+Keep `AtlasModalSheet` mounted and control visibility with `state.show()` / `state.hide()`. Its dialog is removed after dismissal. `onDismissed` is optional; callers may still remove the composable in that callback.
 
 ```kotlin
 scope.launch { state.animateTo("peek") }
@@ -56,7 +56,7 @@ scope.launch { state.collapse() }
 scope.launch { state.hide() }
 ```
 
-`currentDetent` is the snap point the sheet has settled on, or `null` while it is hidden. `progress` is the visible height from `0` to `1`.
+`currentSnapPoint` is the snap point the sheet has settled on, or `null` while it is hidden. `progress` is the visible height from `0` to `1`.
 
 ## Snap points
 
@@ -64,13 +64,13 @@ scope.launch { state.hide() }
 | --- | --- |
 | `fixed("peek", 260.dp)` | An exact height, including the handle, header, and footer |
 | `fraction("medium", 0.6f)` | A fraction of the space above the navigation bar and keyboard |
-| `content()` | As tall as the body needs, plus the header and footer |
+| `fitContent()` | As tall as the body needs, plus the header and footer |
 | `expanded()` | The full height under the status bar, minus `topMargin` |
 | `custom("reading") { … }` | Your own height from `availableHeight`, `contentHeight`, and `chromeHeight` |
 
 Ids must be unique. Two snap points that land on the same height share one position; the first id you declared is the one dragging settles on.
 
-`content()` measures the body, so use it with ordinary content, not a lazy list.
+`fitContent()` measures the body, so use it with ordinary content, not a lazy list.
 
 ## Let the content scroll first
 
@@ -86,16 +86,16 @@ SheetBehavior(bubbleAtTop = true, bubbleAtBottom = false)
 
 Keep a chat list top-aligned. `reverseLayout = true` pins messages to the bottom, so growing the sheet moves the top edge and leaves the bubbles in place. Put the composer in `footer`, not in the list. Atlas does not scroll to new messages for you.
 
-Lazy content cannot use `content()`, because items that are not composed have no height. Use `SheetBodyMode.Fill` and fixed, fractional, or custom snap points:
+Lazy content cannot use `fitContent()`, because items that are not composed have no height. Use `SheetBodyMode.Fill` and fixed, fractional, or custom snap points:
 
 ```kotlin
 AtlasModalSheet(
     state = state,
-    detents = detents,
-    onDismissRequest = { open = false },
+    snapPoints = snapPoints,
+    onDismissed = { open = false },
     bodyMode = SheetBodyMode.Fill,
     behavior = SheetBehavior(
-        imePolicy = SheetImePolicy.Expand,
+        keyboardBehavior = SheetKeyboardBehavior.Expand,
         bubbleAtTop = true,
         bubbleAtBottom = true,
     ),
@@ -123,7 +123,7 @@ SheetBehavior(scrimFollowsDrag = false)
 
 Do not add `imePadding()` around the sheet. Atlas already keeps the sheet above the keyboard.
 
-| `imePolicy` | What happens |
+| `keyboardBehavior` | What happens |
 | --- | --- |
 | `Resize` | The sheet keeps its snap point and shortens to fit above the keyboard. This is the default. |
 | `Expand` | The sheet also jumps to its largest snap point, then returns to the previous one when the keyboard closes. |
@@ -154,8 +154,8 @@ The dimming covers the status bar and navigation bar, so the sheet and the scree
 
 ```kotlin
 AtlasSheet(
-    state = rememberSheetState(initialDetent = "medium"),
-    detents = listOf(SheetDetent.fraction("medium", .6f), SheetDetent.expanded()),
+    state = rememberSheetState(initialSnapPoint = "medium"),
+    snapPoints = listOf(SheetSnapPoint.fraction("medium", .6f), SheetSnapPoint.expanded()),
     onDismissed = { /* pop this screen after the sheet has closed */ },
     footer = { OrderActions() },
 ) {
@@ -184,7 +184,7 @@ Box(Modifier.fillMaxSize()) {
     ScreenBehind()
     AtlasSheetHost(
         state = state,
-        detents = detents,
+        snapPoints = snapPoints,
         scrimColor = Color.Unspecified,
         header = { Text("Filters") },
     ) {
@@ -193,14 +193,14 @@ Box(Modifier.fillMaxSize()) {
 }
 ```
 
-Watch `currentDetent == null` if you want to remove the host after it closes.
+Watch `currentSnapPoint == null` if you want to remove the host after it closes.
 
 ## Stack sheets
 
-Pass the same `stack = rememberSheetStackState()` instance to each `AtlasModalSheet`.
-Each modal uses its own state and detents. Calling `show()` presents it above the others;
+Pass the same `stackState = rememberSheetStackState()` instance to each `AtlasModalSheet`.
+Each modal uses its own state and snapPoints. Calling `show()` presents it above the others;
 calling `hide()` dismisses it without a separate visibility boolean. The custom stack
-example below adds cumulative recession with `Modifier.atlasStackEffect`.
+example below adds cumulative recession with `Modifier.sheetStackEffect`.
 
 ## Keep a flow from being dismissed
 
@@ -257,11 +257,11 @@ composable, route registration, push/pop navigation, or second visibility boolea
 Keep the modals mounted and use their own `SheetState.show()` / `hide()` methods.
 
 ```kotlin
-val stack = rememberSheetStackState()
+val stackState = rememberSheetStackState()
 val friends = rememberSheetState()
 val profile = rememberSheetState(initiallyVisible = false)
 val scope = rememberCoroutineScope()
-val recede = Modifier.atlasStackEffect { entry ->
+val recede = Modifier.sheetStackEffect { entry ->
     val depth = entry.animatedDepth
     scaleX = (1f - 0.06f * depth).coerceAtLeast(0.7f)
     scaleY = (1f - 0.04f * depth).coerceAtLeast(0.8f)
@@ -270,15 +270,15 @@ val recede = Modifier.atlasStackEffect { entry ->
 }
 
 AtlasModalSheet(
-    state = friends, stack = stack,
-    detents = listOf(SheetDetent.expanded()),
+    state = friends, stackState = stackState,
+    snapPoints = listOf(SheetSnapPoint.expanded()),
     surfaceModifier = recede,
 ) {
     Button(onClick = { scope.launch { profile.show() } }) { Text("Open profile") }
 }
 AtlasModalSheet(
-    state = profile, stack = stack,
-    detents = listOf(SheetDetent.fraction("expanded", 0.6f)),
+    state = profile, stackState = stackState,
+    snapPoints = listOf(SheetSnapPoint.fraction("expanded", 0.6f)),
     surfaceModifier = recede,
 ) {
     Button(onClick = { scope.launch { profile.hide() } }) { Text("Close") }
@@ -296,17 +296,17 @@ AtlasModalSheet(
   joins at the top, remains through its completed exit, then unregisters. Showing an
   already-presented modal does not reorder it. Simultaneous first presentations use
   composition order; open sequentially when a specific ordering is needed.
-- `onDismissRequest` is optional and runs after the exit completes. Existing callers
+- `onDismissed` is optional and runs after the exit completes. Existing callers
   may still remove the composable there; mounted callers can leave it in place and
   later call `show()` again. Modal content leaves composition while hidden: hoist any
   content state that must survive reopening outside the modal.
-- `LocalAtlasSheetStackEntry.current` is nullable outside coordinated modal content.
+- `LocalSheetStackEntry.current` is nullable outside coordinated modal content.
   Use it in a custom composed modifier for dynamic side padding. Scaling preserves
   layout and shrinks text; padding changes width and can reflow content.
 - The effect supports scale, translations in `Dp`, alpha, transform origin and optional
   top-corner clipping. Clipping adds to the base shape; it cannot undo that base clip.
   Effects apply only to `surfaceModifier`, leaving the full-screen scrim unchanged.
-- Sheets without `stack` remain independent; `atlasStackEffect` is a no-op there.
+- Sheets without `stackState` remain independent; `sheetStackEffect` is a no-op there.
   Share each stack only among modals in one host window. Separate stack instances do
   not coordinate. Inline/Fragment sheets are not enrolled in this modal coordinator.
 - Each remembered `SheetState` restores its visibility/detent after Activity recreation.

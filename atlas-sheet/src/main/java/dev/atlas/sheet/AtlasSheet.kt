@@ -53,13 +53,13 @@ import kotlin.math.roundToInt
 
 /**
  * State-driven modal. Keep mounted and use state.show()/hide(); the Dialog exists only while
- * presenting. onDismissRequest runs after the exit completes. Share stack for coordinated effects.
+ * presenting. onDismissed runs after the exit completes. Share stack for coordinated effects.
  */
 @Composable
 public fun AtlasModalSheet(
     state: SheetState,
-    detents: List<SheetDetent>,
-    onDismissRequest: () -> Unit = {},
+    snapPoints: List<SheetSnapPoint>,
+    onDismissed: () -> Unit = {},
     modifier: Modifier = Modifier,
     behavior: SheetBehavior = SheetBehavior(),
     bodyMode: SheetBodyMode = SheetBodyMode.Scroll,
@@ -74,18 +74,18 @@ public fun AtlasModalSheet(
     header: @Composable (() -> Unit)? = null,
     footer: @Composable (() -> Unit)? = null,
     surfaceModifier: Modifier = Modifier,
-    stack: SheetStackState? = null,
+    stackState: SheetStackState? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     SideEffect { state.prepareModalPresentation() }
     if (!state.modalPresentationRequested) return
-    val entry = remember(stack, state) { stack?.let { AtlasSheetStackEntry(it, state) } }
-    DisposableEffect(stack, state) {
-        stack?.register(state)
-        onDispose { stack?.unregister(state) }
+    val entry = remember(stackState, state) { stackState?.let { SheetStackEntry(it, state) } }
+    DisposableEffect(stackState, state) {
+        stackState?.register(state)
+        onDispose { stackState?.unregister(state) }
     }
     val scope = rememberCoroutineScope()
-    val dismissCallback by rememberUpdatedState(onDismissRequest)
+    val dismissCallback by rememberUpdatedState(onDismissed)
     Dialog(
         onDismissRequest = { if (behavior.dismissOnBack) scope.launch { state.hide() } },
         properties = DialogProperties(
@@ -120,15 +120,15 @@ public fun AtlasModalSheet(
         }
         LaunchedEffect(state) {
             snapshotFlow {
-                state.hasPresented && !state.modalAwaitingPresentation && state.targetDetent == null && !state.isVisible &&
+                state.hasPresented && !state.modalAwaitingPresentation && state.targetSnapPoint == null && !state.isVisible &&
                     !state.isAnimationRunning && !state.dragInProgress
             }.first { it }
             state.finishModalPresentation()
             dismissCallback()
         }
-        CompositionLocalProvider(LocalAtlasSheetStackEntry provides entry) {
+        CompositionLocalProvider(LocalSheetStackEntry provides entry) {
             AtlasSheetHost(
-                state, detents, modifier, behavior, bodyMode, title, maxWidth, topMargin,
+                state, snapPoints, modifier, behavior, bodyMode, title, maxWidth, topMargin,
                 containerColor, contentColor, scrimColor, shape, dragHandle, header, footer, surfaceModifier, content,
             )
         }
@@ -139,7 +139,7 @@ public fun AtlasModalSheet(
 @Composable
 public fun AtlasSheetHost(
     state: SheetState,
-    detents: List<SheetDetent>,
+    snapPoints: List<SheetSnapPoint>,
     modifier: Modifier = Modifier,
     behavior: SheetBehavior = SheetBehavior(),
     bodyMode: SheetBodyMode = SheetBodyMode.Scroll,
@@ -156,9 +156,9 @@ public fun AtlasSheetHost(
     surfaceModifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    require(detents.isNotEmpty() && detents.map { it.id }.distinct().size == detents.size)
-    require(bodyMode != SheetBodyMode.Fill || detents.none { it.requiresContentMeasurement }) {
-        "Content detents require SheetBodyMode.Scroll. Use fixed/fraction/custom detents for lazy content."
+    require(snapPoints.isNotEmpty() && snapPoints.map { it.id }.distinct().size == snapPoints.size)
+    require(bodyMode != SheetBodyMode.Fill || snapPoints.none { it.requiresContentMeasurement }) {
+        "Content snap points require SheetBodyMode.Scroll. Use fixed/fraction/custom snap points for lazy content."
     }
     require(maxWidth.value.isFinite() && maxWidth > 0.dp)
     require(topMargin.value.isFinite() && topMargin >= 0.dp)
@@ -187,7 +187,7 @@ public fun AtlasSheetHost(
     val navInset = WindowInsets.systemBars.getBottom(density)
     val imeInset = WindowInsets.ime.getBottom(density)
     val imeVisible = imeInset > navInset
-    val bottomInset = if (behavior.imePolicy == SheetImePolicy.Ignore) navInset else maxOf(navInset, imeInset)
+    val bottomInset = if (behavior.keyboardBehavior == SheetKeyboardBehavior.Ignore) navInset else maxOf(navInset, imeInset)
     val fling = AnchoredDraggableDefaults.flingBehavior(state.anchored, animationSpec = state.animationSpec)
     val velocityThreshold = with(density) { 125.dp.toPx() }
     val backgroundTouchSlop = with(density) { 24.dp.toPx() }
@@ -195,7 +195,7 @@ public fun AtlasSheetHost(
         derivedStateOf {
             val g = state.geometry ?: return@derivedStateOf false
             releasesBackgroundPointer(
-                targetHidden = state.hasPresented && state.targetDetent == null,
+                targetHidden = state.hasPresented && state.targetSnapPoint == null,
                 dragInProgress = state.dragInProgress,
                 visibleHeight = (g.availableHeight - state.offsetOrHidden()).coerceAtLeast(0f),
                 slop = backgroundTouchSlop,
@@ -215,10 +215,10 @@ public fun AtlasSheetHost(
     }
     val edgeOverscroll = remember(state, velocityThreshold) { SheetEdgeOverscroll(state, velocityThreshold) }
     var beforeIme by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(imeVisible, behavior.imePolicy) {
-        if (behavior.imePolicy == SheetImePolicy.Expand) {
+    LaunchedEffect(imeVisible, behavior.keyboardBehavior) {
+        if (behavior.keyboardBehavior == SheetKeyboardBehavior.Expand) {
             if (imeVisible && beforeIme == null) {
-                beforeIme = state.targetDetent ?: state.currentDetent
+                beforeIme = state.targetSnapPoint ?: state.currentSnapPoint
                 state.expand()
             } else if (!imeVisible) {
                 beforeIme?.let { id ->
@@ -236,11 +236,11 @@ public fun AtlasSheetHost(
         val availablePx = viewportHeight - with(density) { topMargin.toPx() } - topInset - bottomInset
         if (availablePx <= 0f) return@Box
         val chrome = headerHeight + footerHeight
-        val detentScope = with(density) {
-            SheetDetentScope(availablePx.toDp(), animatedContentHeight.value.toDp(), chrome.toDp())
+        val snapPointScope = with(density) {
+            SheetSnapPointScope(availablePx.toDp(), animatedContentHeight.value.toDp(), chrome.toDp())
         }
-        val geometry = SheetGeometry.resolve(availablePx, chrome.toFloat(), detents.map { d ->
-            d.id to with(density) { d.resolve(detentScope).toPx() }
+        val geometry = SheetGeometry.resolve(availablePx, chrome.toFloat(), snapPoints.map { d ->
+            d.id to with(density) { d.resolve(snapPointScope).toPx() }
         })
         val layoutReady = headerMeasured && footerMeasured &&
             (bodyMode == SheetBodyMode.Fill || contentInitialized)
@@ -259,7 +259,7 @@ public fun AtlasSheetHost(
                 } else Modifier)
                 .semantics { if (behavior.dismissOnScrim && !releaseBackground) contentDescription = "Dismiss $title" })
         }
-        val keyboardCoversNav = behavior.imePolicy != SheetImePolicy.Ignore && imeInset > navInset
+        val keyboardCoversNav = behavior.keyboardBehavior != SheetKeyboardBehavior.Ignore && imeInset > navInset
         if (isVisible && navInset > 0 && !keyboardCoversNav) {
             // The sheet sits on the bottom edge. Continue its color under the navigation
             // bar so the bar does not pick up a separate, darker system scrim.
@@ -292,7 +292,7 @@ public fun AtlasSheetHost(
                     if (!isVisible) hideFromAccessibility()
                     paneTitle = title
                     isTraversalGroup = true
-                    stateDescription = state.currentDetent ?: "Hidden"
+                    stateDescription = state.currentSnapPoint ?: "Hidden"
                     if (behavior.dismissOnDrag) dismiss { scope.launch { state.hide() }; true }
                     expand { scope.launch { state.expand() }; true }
                     collapse { scope.launch { state.collapse() }; true }
