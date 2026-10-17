@@ -22,18 +22,18 @@ import kotlinx.coroutines.flow.first
 /** Hoist this state. Animations are mutually exclusive through Compose's AnchoredDraggableState. */
 @Stable
 public class SheetState internal constructor(
-    internal val initialDetent: String,
+    internal val initialSnapPoint: String,
     internal val animationSpec: AnimationSpec<Float>,
     internal val initiallyVisible: Boolean = true,
 ) {
-    internal val anchored = AnchoredDraggableState(if (initiallyVisible) initialDetent else HiddenId)
+    internal val anchored = AnchoredDraggableState(if (initiallyVisible) initialSnapPoint else HiddenId)
     internal var geometry: SheetGeometry? by mutableStateOf(null)
     private var dragDismiss = true
     private var programmaticHide = false
     private var managedPresentation = false
     internal var measurementsReady by mutableStateOf(false)
     internal var hasPresented by mutableStateOf(false)
-    internal var lastVisibleDetent = initialDetent
+    internal var lastVisibleSnapPoint = initialSnapPoint
     private val rubberTranslationState = mutableFloatStateOf(0f)
     /**
      * Edge resistance, in px. Negative stretches the sheet upward (bottom stays put);
@@ -67,9 +67,9 @@ public class SheetState internal constructor(
         measurementsReady = false
     }
 
-    /** The detent actually reached; does not change half way through an animation. */
-    public val currentDetent: String? get() = anchored.settledValue.takeUnless { it == HiddenId }
-    public val targetDetent: String? get() = anchored.targetValue.takeUnless { it == HiddenId }
+    /** The snap point actually reached; does not change half way through an animation. */
+    public val currentSnapPoint: String? get() = anchored.settledValue.takeUnless { it == HiddenId }
+    public val targetSnapPoint: String? get() = anchored.targetValue.takeUnless { it == HiddenId }
     public val isAnimationRunning: Boolean get() = anchored.isAnimationRunning
     public val isVisible: Boolean get() = geometry?.let { anchored.offset.isFinite() && anchored.offset < it.availableHeight - 0.5f } ?: false
     /** Continuous normalized visible height, useful for coordinated background animation. */
@@ -111,41 +111,41 @@ public class SheetState internal constructor(
     }
 
     /** Suspends until layout is ready. Unknown IDs fail fast; interrupted animations propagate cancellation. */
-    public suspend fun animateTo(detent: String) {
+    public suspend fun animateTo(snapPoint: String) {
         requestPresentation()
         val g = ready()
-        val target = g.canonical(detent)
-        require(target in g.offsets) { "Unknown detent '$detent'. Available: ${g.offsets.keys + g.aliases.keys}" }
+        val target = g.canonical(snapPoint)
+        require(target in g.offsets) { "Unknown snap point '$snapPoint'. Available: ${g.offsets.keys + g.aliases.keys}" }
         modalAwaitingPresentation = false
         clearRubber()
         programmaticHide = false
         hasPresented = true
-        lastVisibleDetent = target
+        lastVisibleSnapPoint = target
         updateAnchors()
         anchored.animateTo(target, animationSpec)
         updateAnchors()
     }
 
-    public suspend fun snapTo(detent: String) {
+    public suspend fun snapTo(snapPoint: String) {
         requestPresentation()
         val g = ready()
-        val target = g.canonical(detent)
-        require(target in g.offsets) { "Unknown detent '$detent'" }
+        val target = g.canonical(snapPoint)
+        require(target in g.offsets) { "Unknown snap point '$snapPoint'" }
         modalAwaitingPresentation = false
         clearRubber()
         programmaticHide = false
         hasPresented = true
-        lastVisibleDetent = target
+        lastVisibleSnapPoint = target
         updateAnchors()
         anchored.snapTo(target)
         updateAnchors()
     }
 
-    /** Show a mounted sheet again, restoring its last requested detent by default. */
-    public suspend fun show(detent: String? = null) {
+    /** Show a mounted sheet again, restoring its last requested snap point by default. */
+    public suspend fun show(snapPoint: String? = null) {
         requestPresentation()
         val g = ready()
-        animateTo(detent ?: g.canonical(lastVisibleDetent).takeIf { it in g.offsets } ?: g.smallest)
+        animateTo(snapPoint ?: g.canonical(lastVisibleSnapPoint).takeIf { it in g.offsets } ?: g.smallest)
     }
 
     public suspend fun expand() { requestPresentation(); animateTo(ready().largest) }
@@ -160,8 +160,8 @@ public class SheetState internal constructor(
             return
         }
         ready()
-        if (currentDetent == null && !isVisible && !isAnimationRunning) return
-        (targetDetent ?: currentDetent)?.let { lastVisibleDetent = it }
+        if (currentSnapPoint == null && !isVisible && !isAnimationRunning) return
+        (targetSnapPoint ?: currentSnapPoint)?.let { lastVisibleSnapPoint = it }
         clearRubber()
         programmaticHide = true
         updateAnchors()
@@ -171,7 +171,7 @@ public class SheetState internal constructor(
 
     internal suspend fun enter() {
         val g = ready()
-        val desired = g.canonical(lastVisibleDetent).takeIf { it in g.offsets } ?: g.smallest
+        val desired = g.canonical(lastVisibleSnapPoint).takeIf { it in g.offsets } ?: g.smallest
         // Managed hosts initialize hidden before the first drawable frame.
         if (!managedPresentation) {
             programmaticHide = true
@@ -317,7 +317,7 @@ public class SheetState internal constructor(
 /** The default settle matches an iOS sheet: short, critically damped, and it keeps the flick. */
 @Composable
 public fun rememberSheetState(
-    initialDetent: String = "expanded",
+    initialSnapPoint: String = "expanded",
     animationSpec: AnimationSpec<Float> = spring(
         dampingRatio = IosSheetSpringDampingRatio,
         stiffness = IosSheetSpringStiffness,
@@ -326,11 +326,11 @@ public fun rememberSheetState(
 ): SheetState {
     val saver = Saver<SheetState, List<String>>(
         save = {
-            val visibleId = if (it.isAnimationRunning) it.targetDetent
-                else it.currentDetent ?: it.lastVisibleDetent.takeIf { _ -> it.isVisible }
-            listOf(visibleId ?: it.lastVisibleDetent, (visibleId != null).toString())
+            val visibleId = if (it.isAnimationRunning) it.targetSnapPoint
+                else it.currentSnapPoint ?: it.lastVisibleSnapPoint.takeIf { _ -> it.isVisible }
+            listOf(visibleId ?: it.lastVisibleSnapPoint, (visibleId != null).toString())
         },
         restore = { SheetState(it[0], animationSpec, it[1].toBoolean()) },
     )
-    return rememberSaveable(saver = saver) { SheetState(initialDetent, animationSpec, initiallyVisible) }
+    return rememberSaveable(saver = saver) { SheetState(initialSnapPoint, animationSpec, initiallyVisible) }
 }

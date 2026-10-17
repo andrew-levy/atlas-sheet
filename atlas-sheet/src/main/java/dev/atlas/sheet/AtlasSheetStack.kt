@@ -29,27 +29,27 @@ public fun rememberSheetStackState(): SheetStackState = remember { SheetStackSta
 
 /** Live information for a modal's current presentation, available inside its content and modifiers. */
 @Stable
-public class AtlasSheetStackEntry internal constructor(
-    private val stack: SheetStackState,
+public class SheetStackEntry internal constructor(
+    private val stackState: SheetStackState,
     public val sheetState: SheetState,
 ) {
     public val depth: Int get() {
-        val index = stack.entries.indexOf(sheetState)
-        return if (index < 0) 0 else stack.entries.lastIndex - index
+        val index = stackState.entries.indexOf(sheetState)
+        return if (index < 0) 0 else stackState.entries.lastIndex - index
     }
-    public val isTopmost: Boolean get() = stack.entries.lastOrNull() === sheetState
+    public val isTopmost: Boolean get() = stackState.entries.lastOrNull() === sheetState
     /** Progress of the immediately covering sheet, from hidden to its smallest detent. */
     public val coveredProgress: Float get() {
-        val index = stack.entries.indexOf(sheetState)
+        val index = stackState.entries.indexOf(sheetState)
         if (index < 0) return 0f
-        return stack.entries.getOrNull(index + 1)?.stackPresentationProgress() ?: 0f
+        return stackState.entries.getOrNull(index + 1)?.stackPresentationProgress() ?: 0f
     }
     /** Sum of every covering sheet's progress: 0, 1, 2 at rest for a three-sheet stack. */
     public val animatedDepth: Float get() {
-        val index = stack.entries.indexOf(sheetState)
+        val index = stackState.entries.indexOf(sheetState)
         if (index < 0) return 0f
         var total = 0f
-        for (i in index + 1 until stack.entries.size) total += stack.entries[i].stackPresentationProgress()
+        for (i in index + 1 until stackState.entries.size) total += stackState.entries[i].stackPresentationProgress()
         return total
     }
 }
@@ -63,11 +63,11 @@ internal fun stackCoverage(visibleHeight: Float, restingHeight: Float): Float =
     if (restingHeight <= 0f) 0f else (visibleHeight / restingHeight).coerceIn(0f, 1f)
 
 /** Available inside a stack sheet, including its surface modifier. */
-public val LocalAtlasSheetStackEntry: ProvidableCompositionLocal<AtlasSheetStackEntry?> =
+public val LocalSheetStackEntry: ProvidableCompositionLocal<SheetStackEntry?> =
     staticCompositionLocalOf { null }
 
 /** Values reset to these defaults on each frame; translations and radii are density independent. */
-public class AtlasStackEffectScope internal constructor() {
+public class SheetStackEffectScope internal constructor() {
     public var scaleX: Float = 1f
     public var scaleY: Float = 1f
     public var translationX: Dp = 0.dp
@@ -82,12 +82,12 @@ public class AtlasStackEffectScope internal constructor() {
  * Apply via surfaceModifier. Without a stack this modifier is a no-op. Does not change measurement.
  * Use ordinary padding before this modifier to change layout width instead of scaling text.
  */
-public fun Modifier.atlasStackEffect(
-    effect: AtlasStackEffectScope.(AtlasSheetStackEntry) -> Unit,
+public fun Modifier.sheetStackEffect(
+    effect: SheetStackEffectScope.(SheetStackEntry) -> Unit,
 ): Modifier = composed {
-    val entry = LocalAtlasSheetStackEntry.current ?: return@composed Modifier
+    val entry = LocalSheetStackEntry.current ?: return@composed Modifier
     graphicsLayer {
-        val values = AtlasStackEffectScope().apply { effect(entry) }
+        val values = SheetStackEffectScope().apply { effect(entry) }
         scaleX = values.scaleX
         scaleY = values.scaleY
         translationX = values.translationX.toPx()

@@ -81,8 +81,8 @@ internal fun SheetState.releaseDismissed(slop: Float): Boolean {
     if (!hasPresented) return false
     val available = geometry?.availableHeight
     val visible = if (available == null) Float.MAX_VALUE else (available - offsetOrHidden()).coerceAtLeast(0f)
-    if (releasesBackgroundPointer(targetDetent == null, dragInProgress, visible, slop)) return true
-    return currentDetent == null && !isVisible && !isAnimationRunning
+    if (releasesBackgroundPointer(targetSnapPoint == null, dragInProgress, visible, slop)) return true
+    return currentSnapPoint == null && !isVisible && !isAnimationRunning
 }
 
 /** 0 at hidden, 1 at the lowest detent, held at 1 above that. Ignored when [followsDrag] is false. */
