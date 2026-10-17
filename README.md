@@ -24,35 +24,33 @@ dependencies {
 
 To try a local build instead, run `./gradlew :atlas-sheet:publishToMavenLocal` and depend on `io.github.andrew-levy:atlas-sheet:0.2.0` with `mavenLocal()`.
 
+The examples below use the unreleased API on this branch. Published `0.2.0` uses the earlier
+names; build this source to use these examples. App-specific content functions are placeholders.
+
 ## Choose a sheet
 
-Choose based on whether the screen behind the sheet should remain interactive.
+| Composable | How it works |
+| --- | --- |
+| `AtlasModalSheet` | Opens above your screen in a separate dialog window. Blocks interaction with the screen behind it. |
+| `AtlasSheet` | Renders inside your existing layout. Use it when the sheet should share the screen with other interactive content. |
 
-| Composable | Background interaction | Use it for |
-| --- | --- | --- |
-| `AtlasModalSheet` | Blocks interaction with the screen behind it while open | Forms, menus, confirmations, and focused flows; dismiss the sheet to return to the screen |
-| `AtlasSheet` | Can keep the background interactive when `scrimColor = Color.Unspecified` | A people list or place details over a map that you can still pan, zoom, and tap |
+Both are Compose components with the same state controls, snap points, and content slots.
+Start with `AtlasModalSheet` for a modal flow; choose `AtlasSheet` for an embedded panel.
 
-For example, a Find My-style screen needs the map and the draggable people panel to work
-at the same time. Use `AtlasSheet` for that panel. Use `AtlasModalSheet` for a confirmation
-or form that temporarily takes over interaction.
+### Background interaction
 
-**This choice is independent of Fragments.** Both are Compose components, neither requires
-a Fragment, and either can be used inside a Fragment's `ComposeView`. Choose `AtlasSheet`
-when you want rendering inside the parent layout; `AtlasModalSheet` opens a separate dialog
-window that isolates focus and input. Removing a modal's dimming does **not** make the
-screen behind its window interactive.
+A scrim is the overlay behind the sheet that dims the screen and catches outside taps.
+Currently, `scrimColor = Color.Unspecified` removes that overlay **and its touch interception**.
+For `AtlasSheet`, this allows touches outside the sheet to reach the underlying content.
+`Color.Transparent` only makes the overlay invisible; it still intercepts touches.
+`AtlasModalSheet` always blocks background interaction through its dialog window.
 
-Both support `show()` / `hide()`, snap points, headers, footers, keyboard behavior, and
-`onDismissed`. The callback reports a completed dismissal; it is not a request to start closing.
+### Fragment support
 
-Keep either composable mounted and let `SheetState` control visibility. State defaults to
-visible; pass `initiallyVisible = false` for a sheet opened by a button. Modal content leaves
-composition while hidden, so hoist content state that must survive reopening.
-
-The examples below describe the API on `main` / this branch, including unreleased pre-1.0
-renames. The published `0.2.0` artifact uses the earlier API; use a build of this source for
-these examples. App-specific content functions in the snippets are placeholders.
+Neither component requires a Fragment. If your app uses Fragments, put either component
+inside a `ComposeView`. Use `AtlasSheet` to render in the Fragment's view, or
+`AtlasModalSheet` to open a dialog above it. Call `state.hide()` to close the sheet,
+then remove or pop the Fragment in `onDismissed`.
 
 ## AtlasModalSheet: a modal above your screen
 
