@@ -39,11 +39,11 @@ Start with `AtlasModalSheet` for a modal flow; choose `AtlasSheet` for an embedd
 
 ### Background interaction
 
-A scrim is the overlay behind the sheet that dims the screen and catches outside taps.
-Currently, `scrimColor = Color.Unspecified` removes that overlay **and its touch interception**.
-For `AtlasSheet`, this allows touches outside the sheet to reach the underlying content.
-`Color.Transparent` only makes the overlay invisible; it still intercepts touches.
-`AtlasModalSheet` always blocks background interaction through its dialog window.
+A scrim is the overlay behind the sheet. By default it dims the screen and catches taps
+that dismiss the sheet. `scrimColor = Color.Unspecified` removes the overlay entirely,
+allowing touches outside `AtlasSheet` to reach underlying content. `Color.Transparent`
+only hides the overlay visually; with the default `dismissOnScrim = true`, it still catches taps.
+`AtlasModalSheet` blocks background interaction through its dialog window regardless of scrim color.
 
 ### Fragment support
 
