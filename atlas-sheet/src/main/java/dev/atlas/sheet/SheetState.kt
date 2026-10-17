@@ -46,7 +46,26 @@ public class SheetState internal constructor(
     private var rubberRaw = 0f
     private var rubberGeneration = 0
 
+    internal var modalPresentationRequested by mutableStateOf(initiallyVisible)
+    internal var modalAwaitingPresentation by mutableStateOf(false)
+    internal var initialPresentationPending = initiallyVisible
+    internal var managedModal = false
+
     internal fun preparePresentation() { managedPresentation = true }
+    internal fun prepareModalPresentation() {
+        preparePresentation()
+        managedModal = true
+    }
+    private fun requestPresentation() {
+        initialPresentationPending = false
+        modalPresentationRequested = true
+        modalAwaitingPresentation = true
+    }
+    internal fun finishModalPresentation() {
+        modalPresentationRequested = false
+        modalAwaitingPresentation = false
+        measurementsReady = false
+    }
 
     /** The detent actually reached; does not change half way through an animation. */
     public val currentDetent: String? get() = anchored.settledValue.takeUnless { it == HiddenId }
@@ -83,13 +102,21 @@ public class SheetState internal constructor(
         }, newTarget = target)
     }
 
-    private suspend fun ready(): SheetGeometry = snapshotFlow { geometry.takeIf { measurementsReady } }.first { it != null }!!
+    private suspend fun ready(): SheetGeometry {
+        val result = snapshotFlow {
+            Pair(geometry.takeIf { measurementsReady }, managedModal && !modalPresentationRequested)
+        }.first { it.first != null || it.second }
+        if (result.second) throw CancellationException("Modal presentation was cancelled before layout")
+        return result.first!!
+    }
 
     /** Suspends until layout is ready. Unknown IDs fail fast; interrupted animations propagate cancellation. */
     public suspend fun animateTo(detent: String) {
+        requestPresentation()
         val g = ready()
         val target = g.canonical(detent)
         require(target in g.offsets) { "Unknown detent '$detent'. Available: ${g.offsets.keys + g.aliases.keys}" }
+        modalAwaitingPresentation = false
         clearRubber()
         programmaticHide = false
         hasPresented = true
@@ -100,9 +127,11 @@ public class SheetState internal constructor(
     }
 
     public suspend fun snapTo(detent: String) {
+        requestPresentation()
         val g = ready()
         val target = g.canonical(detent)
         require(target in g.offsets) { "Unknown detent '$detent'" }
+        modalAwaitingPresentation = false
         clearRubber()
         programmaticHide = false
         hasPresented = true
@@ -114,15 +143,22 @@ public class SheetState internal constructor(
 
     /** Show a mounted sheet again, restoring its last requested detent by default. */
     public suspend fun show(detent: String? = null) {
+        requestPresentation()
         val g = ready()
         animateTo(detent ?: g.canonical(lastVisibleDetent).takeIf { it in g.offsets } ?: g.smallest)
     }
 
-    public suspend fun expand() { animateTo(ready().largest) }
-    public suspend fun collapse() { animateTo(ready().smallest) }
+    public suspend fun expand() { requestPresentation(); animateTo(ready().largest) }
+    public suspend fun collapse() { requestPresentation(); animateTo(ready().smallest) }
 
     /** Programmatic dismissal remains available when drag, scrim or Back dismissal is disabled. */
     public suspend fun hide() {
+        if (managedModal && !modalPresentationRequested) return
+        if (managedModal && !measurementsReady) {
+            initialPresentationPending = false
+            finishModalPresentation()
+            return
+        }
         ready()
         if (currentDetent == null && !isVisible && !isAnimationRunning) return
         (targetDetent ?: currentDetent)?.let { lastVisibleDetent = it }

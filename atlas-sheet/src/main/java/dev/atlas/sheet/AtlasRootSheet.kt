@@ -38,6 +38,7 @@ public fun AtlasSheet(
     dragHandle: @Composable (() -> Unit)? = { SheetDragHandle() },
     header: @Composable (() -> Unit)? = null,
     footer: @Composable (() -> Unit)? = null,
+    surfaceModifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     SideEffect { state.preparePresentation() }
@@ -57,6 +58,6 @@ public fun AtlasSheet(
     }
     AtlasSheetHost(
         state, detents, modifier, behavior, bodyMode, title, maxWidth, topMargin,
-        containerColor, contentColor, scrimColor, shape, dragHandle, header, footer, content,
+        containerColor, contentColor, scrimColor, shape, dragHandle, header, footer, surfaceModifier, content,
     )
 }

@@ -21,6 +21,84 @@ import org.junit.Test
 class SheetMotionTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
+    @Test fun mountedModalsAccumulateDepthInterruptExitAndReopen() {
+        lateinit var stack: SheetStackState
+        lateinit var base: AtlasSheetStackEntry
+        lateinit var middle: AtlasSheetStackEntry
+        lateinit var detail: SheetState
+        lateinit var review: SheetState
+        lateinit var scope: CoroutineScope
+        var baseDepth = 0f
+        var middleDepth = 0f
+        var dismissals = 0
+        compose.runOnUiThread { compose.activity.setContent {
+            stack = rememberSheetStackState()
+            scope = rememberCoroutineScope()
+            val first = rememberSheetState()
+            detail = rememberSheetState(initiallyVisible = false)
+            review = rememberSheetState(initiallyVisible = false)
+            AtlasModalSheet(first, listOf(SheetDetent.expanded()), stack = stack,
+                surfaceModifier = Modifier.atlasStackEffect {
+                    baseDepth = it.animatedDepth
+                    scaleX = 1f - .06f * baseDepth
+                }) {
+                base = requireNotNull(LocalAtlasSheetStackEntry.current)
+                Spacer(Modifier.height(120.dp).testTag("stack-first"))
+            }
+            AtlasModalSheet(detail, listOf(SheetDetent.fraction("expanded", .6f)), stack = stack,
+                surfaceModifier = Modifier.atlasStackEffect { middleDepth = it.animatedDepth }) {
+                middle = requireNotNull(LocalAtlasSheetStackEntry.current)
+                Spacer(Modifier.height(120.dp).testTag("stack-second"))
+            }
+            AtlasModalSheet(review, listOf(SheetDetent.fraction("expanded", .4f)),
+                onDismissRequest = { dismissals++ }, stack = stack) {
+                Spacer(Modifier.height(120.dp).testTag("stack-third"))
+            }
+        } }
+        compose.waitForIdle()
+        assertEquals(1, stack.size)
+        compose.onNodeWithTag("stack-second").assertDoesNotExist()
+        compose.onNodeWithTag("stack-third").assertDoesNotExist()
+        compose.runOnUiThread { scope.launch { detail.show() } }
+        compose.waitForIdle()
+        assertEquals(1f, baseDepth, .01f)
+        compose.runOnUiThread { scope.launch { review.show() } }
+        compose.waitForIdle()
+        assertEquals(3, stack.size)
+        assertEquals(2f, baseDepth, .01f)
+        assertEquals(1f, middleDepth, .01f)
+        compose.mainClock.autoAdvance = false
+        compose.runOnUiThread { scope.launch { review.hide() } }
+        compose.mainClock.advanceTimeBy(64)
+        compose.waitForIdle()
+        assertTrue(baseDepth > 1f && baseDepth < 2f)
+        assertEquals(baseDepth - 1f, middleDepth, .01f)
+        assertEquals(3, stack.size)
+        compose.runOnUiThread { scope.launch { review.show() } }
+        compose.mainClock.autoAdvance = true
+        compose.waitForIdle()
+        assertEquals(0, dismissals)
+        assertEquals(2f, baseDepth, .01f)
+        repeat(2) {
+            compose.runOnUiThread { scope.launch { review.hide() } }
+            compose.waitForIdle()
+            assertEquals(it + 1, dismissals)
+            assertEquals(2, stack.size)
+            compose.onNodeWithTag("stack-third").assertDoesNotExist()
+            assertEquals(1f, baseDepth, .01f)
+            assertTrue(middle.isTopmost)
+            compose.runOnUiThread { scope.launch { review.show() } }
+            compose.waitForIdle()
+            assertEquals(3, stack.size)
+            assertEquals(2f, baseDepth, .01f)
+        }
+        compose.runOnUiThread { scope.launch { review.hide(); detail.hide() } }
+        compose.waitForIdle()
+        assertEquals(1, stack.size)
+        assertEquals(0f, baseDepth, .01f)
+        assertTrue(base.isTopmost)
+    }
+
     @Test fun reachingListTopNeedsAnotherGestureBeforeSheetCollapses() {
         lateinit var state: SheetState
         lateinit var list: androidx.compose.foundation.lazy.LazyListState
