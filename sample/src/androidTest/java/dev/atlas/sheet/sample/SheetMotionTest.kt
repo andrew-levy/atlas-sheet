@@ -3,6 +3,8 @@ package dev.atlas.sheet.sample
 import androidx.activity.compose.setContent
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -20,6 +22,91 @@ import org.junit.Test
 
 class SheetMotionTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+
+    @Test fun inlineBackgroundTouchesAreIndependentOfScrimColor() {
+        var color by mutableStateOf(Color.Unspecified)
+        var behavior by mutableStateOf(SheetBehavior())
+        var backgroundTaps = 0
+        lateinit var state: SheetState
+        lateinit var scope: CoroutineScope
+        compose.runOnUiThread { compose.activity.setContent {
+            state = rememberSheetState()
+            scope = rememberCoroutineScope()
+            Box(Modifier.fillMaxSize()) {
+                Box(Modifier.fillMaxWidth().height(80.dp)
+                    .testTag("background-target").clickable { backgroundTaps++ })
+                AtlasSheet(
+                    state = state,
+                    snapPoints = listOf(SheetSnapPoint.fraction("expanded", .4f)),
+                    scrimColor = color,
+                    behavior = behavior,
+                ) { Spacer(Modifier.height(80.dp)) }
+            }
+        } }
+        compose.waitForIdle()
+        for (scrim in listOf(Color.Unspecified, Color.Transparent, Color.Black.copy(alpha = .42f))) {
+            for ((blocks, dismisses) in listOf(true to true, true to false, false to true, false to false)) {
+                compose.runOnUiThread {
+                    color = scrim
+                    behavior = SheetBehavior(scrimEnabled = blocks, dismissOnScrim = dismisses)
+                    scope.launch { state.show() }
+                }
+                compose.waitForIdle()
+                val before = backgroundTaps
+                // Inject a real touch at the underlying node's coordinates, so overlay hit testing runs.
+                compose.onNodeWithTag("background-target").performTouchInput { click() }
+                compose.waitForIdle()
+                assertEquals(before + if (blocks) 0 else 1, backgroundTaps)
+                assertEquals(!(blocks && dismisses), state.isVisible)
+            }
+        }
+        compose.runOnUiThread { scope.launch { state.hide() } }
+        compose.waitForIdle()
+        val before = backgroundTaps
+        compose.onNodeWithTag("background-target").performTouchInput { click() }
+        compose.waitForIdle()
+        assertEquals(before + 1, backgroundTaps)
+    }
+
+    @Test fun modalOutsideTapDismissesWithEnabledTransparentScrim() {
+        lateinit var state: SheetState
+        compose.runOnUiThread { compose.activity.setContent {
+            state = rememberSheetState()
+            AtlasModalSheet(
+                state = state,
+                snapPoints = listOf(SheetSnapPoint.fraction("expanded", .4f)),
+                scrimColor = Color.Transparent,
+                behavior = SheetBehavior(scrimEnabled = true),
+            ) { Spacer(Modifier.height(80.dp)) }
+        } }
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("Dismiss Bottom sheet")
+            .performTouchInput { click(androidx.compose.ui.geometry.Offset(center.x, 40f)) }
+        compose.waitForIdle()
+        assertFalse(state.isVisible)
+    }
+
+    @Test fun disabledModalScrimNeitherDismissesNorPassesTouchesToBackground() {
+        lateinit var state: SheetState
+        var backgroundTaps = 0
+        compose.runOnUiThread { compose.activity.setContent {
+            state = rememberSheetState()
+            Box(Modifier.fillMaxSize().clickable { backgroundTaps++ })
+            AtlasModalSheet(
+                state = state,
+                snapPoints = listOf(SheetSnapPoint.fraction("expanded", .4f)),
+                behavior = SheetBehavior(scrimEnabled = false),
+            ) { Spacer(Modifier.height(80.dp)) }
+        } }
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("Dismiss Bottom sheet").assertDoesNotExist()
+        compose.onNode(isDialog()).performTouchInput {
+            click(androidx.compose.ui.geometry.Offset(center.x, 40f))
+        }
+        compose.waitForIdle()
+        assertTrue(state.isVisible)
+        assertEquals(0, backgroundTaps)
+    }
 
     @Test fun mountedModalsAccumulateDepthInterruptExitAndReopen() {
         lateinit var stackState: SheetStackState

@@ -51,7 +51,10 @@ are disabled. The scrim is drawn once in Compose across the full host, including
 By default its alpha tracks the visible height until the lowest snap point and then holds. `scrimFollowsDrag = false` keeps that alpha at full strength whenever the sheet is visible.
 The sheet surface continues its container color behind the navigation bar. Dismissal callback runs once
 the sheet is visually gone, so a following tap is not swallowed by the spring's settling tail. `AtlasSheetHost` is an inline overlay with no modal focus
-isolation; a scrim-free host permits interaction with its background. Place it last in a
+isolation. `scrimEnabled = false` removes scrim drawing and touch handling, permitting outside
+touches to reach the background of an inline sheet. Color controls drawing only. An enabled
+scrim blocks outside touches even when `dismissOnScrim = false`. Modal windows always block
+background interaction; disabling their scrim also disables outside-tap dismissal. Place the host last in a
 full-size Box. It does not own your navigation or determine when it is removed.
 
 ## Before a broad rollout

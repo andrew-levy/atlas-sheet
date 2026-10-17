@@ -135,7 +135,7 @@ public fun AtlasModalSheet(
     }
 }
 
-/** Inline overlay. Put last in a full-size Box. Color.Unspecified removes the scrim and its hit target. */
+/** Inline overlay. Put last in a full-size Box. Scrim color controls drawing only; SheetBehavior controls outside touches. */
 @Composable
 public fun AtlasSheetHost(
     state: SheetState,
@@ -246,18 +246,33 @@ public fun AtlasSheetHost(
             (bodyMode == SheetBodyMode.Fill || contentInitialized)
         SideEffect { state.updateGeometry(geometry, behavior.dismissOnDrag, layoutReady) }
 
-        if (scrimColor != Color.Unspecified && isVisible) {
+        if (isVisible && behavior.scrimEnabled) {
+            // Enabled scrims intercept touches even when their color draws nothing.
+            val blocksBackground = !releaseBackground
             Box(Modifier.fillMaxSize()
                 .drawBehind {
-                    val visible = geometry.availableHeight - state.offsetOrHidden()
-                    val smallestHeight = geometry.availableHeight - geometry.offsets.getValue(geometry.smallest)
-                    val fraction = scrimDragFraction(visible, smallestHeight, behavior.scrimFollowsDrag)
-                    drawRect(scrimColor.copy(alpha = scrimColor.alpha * fraction))
+                    if (scrimColor != Color.Unspecified) {
+                        val visible = geometry.availableHeight - state.offsetOrHidden()
+                        val smallestHeight = geometry.availableHeight - geometry.offsets.getValue(geometry.smallest)
+                        val fraction = scrimDragFraction(visible, smallestHeight, behavior.scrimFollowsDrag)
+                        drawRect(scrimColor.copy(alpha = scrimColor.alpha * fraction))
+                    }
                 }
-                .then(if (behavior.dismissOnScrim && !releaseBackground) {
-                    Modifier.clickable(onClickLabel = "Dismiss $title") { scope.launch { state.hide() } }
-                } else Modifier)
-                .semantics { if (behavior.dismissOnScrim && !releaseBackground) contentDescription = "Dismiss $title" })
+                .then(when {
+                    blocksBackground && behavior.dismissOnScrim ->
+                        Modifier.clickable(onClickLabel = "Dismiss $title") { scope.launch { state.hide() } }
+                    blocksBackground -> Modifier.pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                awaitPointerEvent().changes.forEach { it.consume() }
+                            }
+                        }
+                    }
+                    else -> Modifier
+                })
+                .semantics {
+                    if (blocksBackground && behavior.dismissOnScrim) contentDescription = "Dismiss $title"
+                })
         }
         val keyboardCoversNav = behavior.keyboardBehavior != SheetKeyboardBehavior.Ignore && imeInset > navInset
         if (isVisible && navInset > 0 && !keyboardCoversNav) {

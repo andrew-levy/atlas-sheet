@@ -39,11 +39,30 @@ Start with `AtlasModalSheet` for a modal flow; choose `AtlasSheet` for an embedd
 
 ### Background interaction
 
-A scrim is the overlay behind the sheet. By default it dims the screen and catches taps
-that dismiss the sheet. `scrimColor = Color.Unspecified` removes the overlay entirely,
-allowing touches outside `AtlasSheet` to reach underlying content. `Color.Transparent`
-only hides the overlay visually; with the default `dismissOnScrim = true`, it still catches taps.
-`AtlasModalSheet` blocks background interaction through its dialog window regardless of scrim color.
+`scrimEnabled` enables or removes the whole scrim: its drawing and outside-touch handling.
+`scrimColor` controls appearance only; a transparent enabled scrim still catches touches.
+
+```kotlin
+AtlasSheet(
+    state = state,
+    snapPoints = snapPoints,
+    scrimColor = Color.Black.copy(alpha = 0.42f), // Used only when enabled.
+    behavior = SheetBehavior(scrimEnabled = false),
+) {
+    Content()
+}
+```
+
+| Configuration | Outside touches |
+| --- | --- |
+| `scrimEnabled = true` (default), `dismissOnScrim = true` | Dismiss the sheet; do not reach the background |
+| `scrimEnabled = true`, `dismissOnScrim = false` | Blocked without dismissing the sheet |
+| `scrimEnabled = false` | No scrim or dimming; touches reach the background of an inline sheet |
+
+`Color.Transparent` and `Color.Unspecified` both draw no dimming and never change touch
+behavior. `AtlasModalSheet` always blocks background interaction through its window.
+With its scrim disabled, outside taps do not dismiss it. Back and `state.hide()` still
+work according to their own settings. Use `AtlasSheet` for touch-through.
 
 ### Fragment support
 
@@ -189,8 +208,8 @@ The dimming covers the status bar and navigation bar, so the sheet and the scree
 ## AtlasSheet: a sheet inside your layout
 
 Use `AtlasSheet` in a full-size `Box` alongside your Compose screen. It fills its parent,
-opens on mount by default, and animates closed when you call `hide()`. With
-`scrimColor = Color.Unspecified`, the background remains interactive outside the sheet.
+opens on mount by default, and animates closed when you call `hide()`. Set
+`behavior = SheetBehavior(scrimEnabled = false)` to keep the background interactive outside the sheet.
 An inline sheet does not provide the separate-window focus isolation of `AtlasModalSheet`.
 
 ![Shared sheet resizing and scrolling behavior, shown in the modal demo](docs/videos/heavyContent.gif)
@@ -211,6 +230,7 @@ Box(Modifier.fillMaxSize()) {
             SheetSnapPoint.expanded(),
         ),
         scrimColor = Color.Unspecified,
+        behavior = SheetBehavior(scrimEnabled = false),
         header = { Text("Nearby places") },
         footer = {
             Button(onClick = { scope.launch { state.hide() } }) { Text("Close") }
@@ -361,7 +381,7 @@ These parameters are shared by `AtlasModalSheet` and `AtlasSheet`, except `stack
 | `behavior` | `SheetBehavior()` | Configure dragging, dismissal, keyboard, or scroll handoff |
 | `maxWidth` / `topMargin` | `640.dp` / `24.dp` | Tune tablet width and space above the expanded sheet |
 | `containerColor` / `contentColor` | White / dark blue-gray | Apply your theme; custom content can read `LocalSheetContentColor` |
-| `scrimColor` | Black at 42% alpha | Tune dimming; `Color.Unspecified` removes the scrim and its hit target |
+| `scrimColor` | Black at 42% alpha | Tune dimming; `Color.Unspecified` or `Color.Transparent` draws no dimming |
 | `shape` | Rounded top corners, `28.dp` | Customize the base surface shape |
 | `modifier` | `Modifier` | Customize the full host container |
 | `surfaceModifier` | `Modifier` | Customize the sheet surface, including stack effects |

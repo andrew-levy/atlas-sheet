@@ -380,6 +380,7 @@ private fun PeopleSheet(state: SheetState, front: Boolean, onSelect: (Friend) ->
         modifier = modifier,
         behavior = SheetBehavior(
             keyboardBehavior = SheetKeyboardBehavior.Ignore,
+            scrimEnabled = false,
             dismissOnScrim = false,
         ),
         bodyMode = SheetBodyMode.Fill,
@@ -434,6 +435,7 @@ private fun PersonSheet(
         modifier = modifier,
         behavior = SheetBehavior(
             keyboardBehavior = SheetKeyboardBehavior.Ignore,
+            scrimEnabled = false,
             draggable = front,
             dismissOnScrim = false,
         ),

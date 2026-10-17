@@ -151,6 +151,7 @@ private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
         SheetBehavior(
             keyboardBehavior = if (demo == Demo.Chat || demo == Demo.Heavy) SheetKeyboardBehavior.Expand else SheetKeyboardBehavior.Resize,
             dismissOnDrag = demo != Demo.Locked,
+            scrimEnabled = demo != Demo.Persistent,
             dismissOnScrim = demo != Demo.Locked,
             dismissOnBack = demo != Demo.Locked,
         )

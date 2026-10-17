@@ -21,7 +21,12 @@ public enum class SheetBodyMode {
 @Immutable
 public data class SheetBehavior(
     val dismissOnDrag: Boolean = true,
+    /** Dismiss on a tap on the enabled scrim. */
     val dismissOnScrim: Boolean = true,
+    /** Show the scrim and intercept outside touches, independently of its color.
+     * Disabling removes both. A modal window still blocks background interaction.
+     */
+    val scrimEnabled: Boolean = true,
     val dismissOnBack: Boolean = true,
     val draggable: Boolean = true,
     val keyboardBehavior: SheetKeyboardBehavior = SheetKeyboardBehavior.Resize,
