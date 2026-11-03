@@ -350,8 +350,8 @@ public fun BetterSheetHost(
             Modifier.animateEnterExit(enterTransition, exitTransition, "Sheet presentation")
         }).sheetPresentationPlacement(state)) {
             val barInset = if (opensFromTop) topInset else navInset
-            if (tray == null && (isVisible || state.presentationExiting) && barInset > 0 &&
-                (opensFromTop || !keyboardCoversNav)
+            if (!opensFromTop && tray == null && (isVisible || state.presentationExiting) && barInset > 0 &&
+                !keyboardCoversNav
             ) {
                 // Continue the surface color behind the system bar at the opening edge.
                 Box(Modifier.align(edgeAlignment)
@@ -365,7 +365,7 @@ public fun BetterSheetHost(
                 .align(edgeAlignment)
                 .edgeRubber(state, opensFromTop)
                 .padding(
-                    top = with(density) { if (opensFromTop) topInset.toDp() else 0.dp },
+                    top = 0.dp,
                     bottom = with(density) { if (opensFromTop) 0.dp else (bottomInset - navExtension).toDp() } + trayGap,
                 )
                 .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Horizontal))
@@ -373,7 +373,7 @@ public fun BetterSheetHost(
                 .padding(horizontal = traySide)
                 .then(surfaceModifier)
                 .sheetSurfaceShadow(
-                    16.dp,
+                    if (opensFromTop) 0.dp else 16.dp,
                     surfaceShape,
                     floating = tray != null,
                 )
@@ -383,7 +383,11 @@ public fun BetterSheetHost(
             Layout(modifier = sheetSurfaceModifier, content = {
                 Layout(modifier = Modifier.fillMaxWidth()
                     .background(containerColor)
-                    .padding(bottom = with(density) { navExtension.toDp() })
+                    // The status bar is inside the same clipped sheet surface, not a separate cap.
+                    .padding(
+                        top = with(density) { if (opensFromTop) topInset.toDp() else 0.dp },
+                        bottom = with(density) { navExtension.toDp() },
+                    )
                     .then(if (behavior.draggable) Modifier.nestedScroll(nested).pointerInput(nested) {
                         awaitEachGesture {
                             awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
@@ -450,8 +454,9 @@ public fun BetterSheetHost(
                 val base = if (chrome == 0) availablePx else visibleHeight.coerceAtLeast(chrome.toFloat().coerceAtMost(availablePx))
                 // Compensate the external gap/extension so the top edge stays on its detent.
                 val adjustment = navExtension - trayGap.toPx()
-                val childHeight = (base + stretch + adjustment).roundToInt().coerceAtLeast(0)
-                val visible = (visibleHeight + stretch + adjustment).roundToInt().coerceAtLeast(0)
+                val topExtension = if (opensFromTop) topInset else 0
+                val childHeight = (base + stretch + adjustment + topExtension).roundToInt().coerceAtLeast(0)
+                val visible = (visibleHeight + stretch + adjustment + topExtension).roundToInt().coerceAtLeast(0)
                 val child = measurables.single().measure(Constraints.fixed(constraints.maxWidth, childHeight))
                 layout(constraints.maxWidth, visible) { child.place(0, 0) }
             }
