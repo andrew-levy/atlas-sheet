@@ -82,10 +82,10 @@ public fun BetterModalSheet(
     surfaceModifier: Modifier = Modifier,
     stackState: SheetStackState? = null,
     presentation: SheetPresentation = SheetPresentation.Standard,
+    edge: SheetEdge = SheetEdge.Bottom,
     enterTransition: EnterTransition = slideInVertically(defaultSheetSpring(IntOffset(1, 1))) { if (edge == SheetEdge.Top) -it else it },
     exitTransition: ExitTransition = slideOutVertically(defaultSheetSpring(IntOffset(1, 1))) { if (edge == SheetEdge.Top) -it else it },
     snapAnimationSpec: AnimationSpec<Float> = defaultSheetSpring(),
-    edge: SheetEdge = SheetEdge.Bottom,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     SideEffect { state.prepareModalPresentation() }
@@ -135,7 +135,7 @@ public fun BetterModalSheet(
         CompositionLocalProvider(LocalSheetStackEntry provides entry) {
             BetterSheetHost(
                 state, snapPoints, modifier, behavior, bodyMode, title, maxWidth, topMargin,
-                containerColor, contentColor, scrimColor, shape, dragHandle, header, footer, surfaceModifier, presentation, enterTransition, exitTransition, snapAnimationSpec, edge, content,
+                containerColor, contentColor, scrimColor, shape, dragHandle, header, footer, surfaceModifier, presentation, edge, enterTransition, exitTransition, snapAnimationSpec, content,
             )
         }
     }
@@ -161,10 +161,10 @@ public fun BetterSheetHost(
     footer: @Composable (() -> Unit)? = null,
     surfaceModifier: Modifier = Modifier,
     presentation: SheetPresentation = SheetPresentation.Standard,
+    edge: SheetEdge = SheetEdge.Bottom,
     enterTransition: EnterTransition = slideInVertically(defaultSheetSpring(IntOffset(1, 1))) { if (edge == SheetEdge.Top) -it else it },
     exitTransition: ExitTransition = slideOutVertically(defaultSheetSpring(IntOffset(1, 1))) { if (edge == SheetEdge.Top) -it else it },
     snapAnimationSpec: AnimationSpec<Float> = defaultSheetSpring(),
-    edge: SheetEdge = SheetEdge.Bottom,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     require(snapPoints.isNotEmpty() && snapPoints.map { it.id }.distinct().size == snapPoints.size)
