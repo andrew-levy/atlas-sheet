@@ -91,9 +91,19 @@ class DemoRecordingTest {
 
     @Test fun topSheet() {
         open("TopSheet")
-        listOf("expanded", "peek", "medium").forEach { snapPoint ->
+        compose.onNodeWithTag("footer").assertIsDisplayed()
+        compose.onNodeWithTag("primary-action").assertIsDisplayed()
+        compose.onNodeWithTag("snap-point-expanded").performClick()
+        pause()
+        // Show the scrollable body moving while the footer stays pinned to the bottom.
+        compose.onNodeWithTag("body-list").performTouchInput { swipeUp() }
+        pause()
+        compose.onNodeWithTag("footer").assertIsDisplayed()
+        compose.onNodeWithTag("primary-action").assertIsDisplayed()
+        listOf("peek", "medium").forEach { snapPoint ->
             compose.onNodeWithTag("snap-point-$snapPoint").performClick()
             pause()
+            compose.onNodeWithTag("footer").assertIsDisplayed()
         }
         compose.onNodeWithTag("close").performClick()
         pause()

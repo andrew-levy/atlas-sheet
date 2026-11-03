@@ -198,31 +198,35 @@ private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
             Spacer(Modifier.height(8.dp))
         }
     }
-    val footer: @Composable () -> Unit = {
-        Surface(shadowElevation = 6.dp) {
-            if (demo == Demo.Chat || demo == Demo.Heavy) {
-                Row(Modifier.fillMaxWidth().padding(16.dp).testTag("footer"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(message, { message = it }, placeholder = { Text("Message the team") }, modifier = Modifier.weight(1f).testTag("composer"), maxLines = 3, shape = RoundedCornerShape(24.dp))
-                    Button(onClick = {
-                        if (message.isNotBlank()) {
-                            if (demo == Demo.Heavy) heavyThread = heavyThread.orEmpty() + HeavyMessage("You", message, "sent") else {
-                                messages.add(message)
-                                chatList.requestScrollToItem(messages.lastIndex)
-                            }
-                            message = ""
+    val footerContent: @Composable () -> Unit = {
+        if (demo == Demo.Chat || demo == Demo.Heavy) {
+            Row(Modifier.fillMaxWidth().padding(16.dp).testTag("footer"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(message, { message = it }, placeholder = { Text("Message the team") }, modifier = Modifier.weight(1f).testTag("composer"), maxLines = 3, shape = RoundedCornerShape(24.dp))
+                Button(onClick = {
+                    if (message.isNotBlank()) {
+                        if (demo == Demo.Heavy) heavyThread = heavyThread.orEmpty() + HeavyMessage("You", message, "sent") else {
+                            messages.add(message)
+                            chatList.requestScrollToItem(messages.lastIndex)
                         }
-                    }, modifier = Modifier.testTag("send")) { Text("Send") }
-                }
-            } else {
-                Column(Modifier.fillMaxWidth().padding(16.dp).testTag("footer")) {
-                    Button(onClick = {
-                        if (demo == Demo.Fit) extra = !extra else scope.launch { state.hide() }
-                    }, modifier = Modifier.fillMaxWidth().testTag("primary-action")) {
-                        Text(if (demo == Demo.Fit) if (extra) "Show fewer options" else "Show more options" else if (demo == Demo.Locked) "Complete & close" else "Continue")
+                        message = ""
                     }
+                }, modifier = Modifier.testTag("send")) { Text("Send") }
+            }
+        } else {
+            Column(Modifier.fillMaxWidth().padding(16.dp).testTag("footer")) {
+                Button(onClick = {
+                    if (demo == Demo.Fit) extra = !extra else scope.launch { state.hide() }
+                }, modifier = Modifier.fillMaxWidth().testTag("primary-action")) {
+                    Text(if (demo == Demo.Fit) if (extra) "Show fewer options" else "Show more options" else if (demo == Demo.Locked) "Complete & close" else "Continue")
                 }
             }
         }
+    }
+    val footer: @Composable () -> Unit = {
+        // The top-sheet footer is a sticky slot within the sheet's existing
+        // rounded/clipped surface; it doesn't need its own elevated Surface.
+        if (demo == Demo.TopSheet) footerContent()
+        else Surface(shadowElevation = 6.dp) { footerContent() }
     }
     val body: @Composable ColumnScope.() -> Unit = {
         when (demo) {
@@ -268,7 +272,7 @@ private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
             edge = if (demo == Demo.TopSheet) SheetEdge.Top else SheetEdge.Bottom,
             dragHandle = handle,
             presentation = if (demo == Demo.Tray) SheetPresentation.Tray() else SheetPresentation.Standard,
-            header = header, footer = if (demo == Demo.TopSheet) null else footer, content = body)
+            header = header, footer = footer, content = body)
     }
 }
 
