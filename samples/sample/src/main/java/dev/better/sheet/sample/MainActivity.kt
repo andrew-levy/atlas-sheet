@@ -247,7 +247,7 @@ private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
                 }
             }
             else -> LazyColumn(Modifier.fillMaxSize().testTag("body-list"), contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                item { Text(if (demo == Demo.Locked) "Try Back, the scrim, and dragging down. This flow only closes explicitly." else "Drag the handle or scroll this list. The footer remains outside the scrolling viewport.", color = Color(0xFF68728A)) }
+                item { Text(if (demo == Demo.Locked) "Try Back, the scrim, and dragging down. This flow only closes explicitly." else if (demo == Demo.TopSheet) "Drag down to expand, swipe up to collapse, or scroll through the list." else "Drag the handle or scroll this list. The footer remains outside the scrolling viewport.", color = Color(0xFF68728A)) }
                 items(100, key = { it }) { i ->
                     Row(Modifier.fillMaxWidth().background(Paper, RoundedCornerShape(14.dp)).padding(18.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text("%02d".format(i + 1), color = Accent, fontWeight = FontWeight.Bold)
@@ -264,8 +264,9 @@ private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
     } else {
         BetterModalSheet(state, snapPoints, close, behavior = behavior, bodyMode = mode, title = demo.label,
             edge = if (demo == Demo.TopSheet) SheetEdge.Top else SheetEdge.Bottom,
+            dragHandle = if (demo == Demo.TopSheet) null else { { SheetDragHandle() } },
             presentation = if (demo == Demo.Tray) SheetPresentation.Tray() else SheetPresentation.Standard,
-            header = header, footer = footer, content = body)
+            header = header, footer = if (demo == Demo.TopSheet) null else footer, content = body)
     }
 }
 
