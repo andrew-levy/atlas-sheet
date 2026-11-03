@@ -172,7 +172,7 @@ Open in Android Studio with JDK 17 and SDK 35, then run either app on Android 24
 
 | App | Includes |
 | --- | --- |
-| [`sample`](samples/sample) | Snap points, animation presets, chat, content sizing, stacking, scroll handoff, trays, and Fragments |
+| [`sample`](samples/sample) | Snap points, animation presets, chat, content sizing, stacking, scroll handoff, trays, top sheets, and Fragments |
 | [`findmy`](samples/findmy) | An interactive map with an inline people sheet |
 
 ```bash

@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -52,6 +53,9 @@ import androidx.compose.ui.window.DialogWindowProvider
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+
+/** The window edge a standard sheet opens from. */
+public enum class SheetEdge { Bottom, Top }
 
 /**
  * State-driven modal. Keep mounted and use state.show()/hide(); the Dialog exists only while
@@ -78,8 +82,9 @@ public fun BetterModalSheet(
     surfaceModifier: Modifier = Modifier,
     stackState: SheetStackState? = null,
     presentation: SheetPresentation = SheetPresentation.Standard,
-    enterTransition: EnterTransition = slideInVertically(defaultSheetSpring(IntOffset(1, 1))) { it },
-    exitTransition: ExitTransition = slideOutVertically(defaultSheetSpring(IntOffset(1, 1))) { it },
+    edge: SheetEdge = SheetEdge.Bottom,
+    enterTransition: EnterTransition = slideInVertically(defaultSheetSpring(IntOffset(1, 1))) { if (edge == SheetEdge.Top) -it else it },
+    exitTransition: ExitTransition = slideOutVertically(defaultSheetSpring(IntOffset(1, 1))) { if (edge == SheetEdge.Top) -it else it },
     snapAnimationSpec: AnimationSpec<Float> = defaultSheetSpring(),
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -111,7 +116,8 @@ public fun BetterModalSheet(
             if (window != null && activity != null) {
                 val host = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
                 WindowCompat.getInsetsController(window, window.decorView).apply {
-                    isAppearanceLightStatusBars = host.isAppearanceLightStatusBars
+                    isAppearanceLightStatusBars = if (edge == SheetEdge.Top) containerColor.luminance() > 0.5f
+                    else host.isAppearanceLightStatusBars
                     isAppearanceLightNavigationBars = host.isAppearanceLightNavigationBars
                 }
             }
@@ -129,7 +135,7 @@ public fun BetterModalSheet(
         CompositionLocalProvider(LocalSheetStackEntry provides entry) {
             BetterSheetHost(
                 state, snapPoints, modifier, behavior, bodyMode, title, maxWidth, topMargin,
-                containerColor, contentColor, scrimColor, shape, dragHandle, header, footer, surfaceModifier, presentation, enterTransition, exitTransition, snapAnimationSpec, content,
+                containerColor, contentColor, scrimColor, shape, dragHandle, header, footer, surfaceModifier, presentation, edge, enterTransition, exitTransition, snapAnimationSpec, content,
             )
         }
     }
@@ -155,8 +161,9 @@ public fun BetterSheetHost(
     footer: @Composable (() -> Unit)? = null,
     surfaceModifier: Modifier = Modifier,
     presentation: SheetPresentation = SheetPresentation.Standard,
-    enterTransition: EnterTransition = slideInVertically(defaultSheetSpring(IntOffset(1, 1))) { it },
-    exitTransition: ExitTransition = slideOutVertically(defaultSheetSpring(IntOffset(1, 1))) { it },
+    edge: SheetEdge = SheetEdge.Bottom,
+    enterTransition: EnterTransition = slideInVertically(defaultSheetSpring(IntOffset(1, 1))) { if (edge == SheetEdge.Top) -it else it },
+    exitTransition: ExitTransition = slideOutVertically(defaultSheetSpring(IntOffset(1, 1))) { if (edge == SheetEdge.Top) -it else it },
     snapAnimationSpec: AnimationSpec<Float> = defaultSheetSpring(),
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -164,6 +171,11 @@ public fun BetterSheetHost(
     require(bodyMode != SheetBodyMode.Fill || snapPoints.none { it.requiresContentMeasurement }) {
         "Content snap points require SheetBodyMode.Scroll. Use fixed/fraction/custom snap points for lazy content."
     }
+    val opensFromTop = edge == SheetEdge.Top
+    require(!opensFromTop || presentation == SheetPresentation.Standard) {
+        "Top sheets support standard presentation."
+    }
+    val edgeAlignment = if (opensFromTop) Alignment.TopCenter else Alignment.BottomCenter
     require(maxWidth.value.isFinite() && maxWidth > 0.dp)
     require(topMargin.value.isFinite() && topMargin >= 0.dp)
     SideEffect {
@@ -231,9 +243,9 @@ public fun BetterSheetHost(
         else window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
     }
     val handoffThreshold = with(density) { behavior.scrollFlingThreshold.dp.toPx() }
-    val nested = remember(state, behavior, velocityThreshold, handoffThreshold) {
+    val nested = remember(state, behavior, velocityThreshold, handoffThreshold, opensFromTop) {
         SheetNestedScroll(state, velocityThreshold, behavior.bubbleAtTop, behavior.bubbleAtBottom,
-            behavior.transferScrollFling, handoffThreshold, behavior.scrollFlingVelocityScale)
+            behavior.transferScrollFling, handoffThreshold, behavior.scrollFlingVelocityScale, reverseDirection = opensFromTop)
     }
     val edgeOverscroll = remember(state, velocityThreshold) { SheetEdgeOverscroll(state, velocityThreshold) }
     var beforeIme by remember { mutableStateOf<String?>(null) }
@@ -325,36 +337,47 @@ public fun BetterSheetHost(
             val reported = with(density) { deviceCornerRadius.toDp() } - it.horizontalInset
             if (it.matchDeviceCorners && hostReachesWindowEdges && deviceCornerRadius > 0f) reported.coerceAtLeast(0.dp) else it.cornerRadius
         } ?: 0.dp
-        val surfaceShape = if (tray == null) shape else RoundedCornerShape(
+        // Preserve the existing default bottom-sheet shape for callers. Only the
+        // implicit/default shape mirrors to the lower corners for top sheets.
+        val defaultBottomShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        val resolvedShape = if (opensFromTop && shape == defaultBottomShape) {
+            RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
+        } else shape
+        val surfaceShape = if (tray == null) resolvedShape else RoundedCornerShape(
             topStart = radius * (1f - morph) + tray.expandedCornerRadius * morph,
             topEnd = radius * (1f - morph) + tray.expandedCornerRadius * morph,
             bottomStart = radius * (1f - morph), bottomEnd = radius * (1f - morph),
         )
-        // One transition wraps the surface and its navigation-bar continuation together.
+        // Animate the surface and its system bar background together.
         // The body remains composed and measured while hidden, preserving content state.
-        Box(Modifier.align(Alignment.BottomCenter).then(with(visibilityScope) {
+        Box(Modifier.align(edgeAlignment).then(with(visibilityScope) {
             Modifier.animateEnterExit(enterTransition, exitTransition, "Sheet presentation")
         }).sheetPresentationPlacement(state)) {
-            if (tray == null && (isVisible || state.presentationExiting) && navInset > 0 && !keyboardCoversNav) {
-                // The sheet sits on the bottom edge. Continue its color under the navigation
-                // bar so the bar does not pick up a separate, darker system scrim.
-                Box(Modifier.align(Alignment.BottomCenter)
-                    .downwardRubber(state)
+            val barInset = if (opensFromTop) topInset else navInset
+            if (!opensFromTop && tray == null && (isVisible || state.presentationExiting) && barInset > 0 &&
+                !keyboardCoversNav
+            ) {
+                // Continue the surface color behind the system bar at the opening edge.
+                Box(Modifier.align(edgeAlignment)
+                    .edgeRubber(state, opensFromTop)
                     .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Horizontal))
                     .widthIn(max = maxWidth).fillMaxWidth()
-                    .height(with(density) { navInset.toDp() })
+                    .height(with(density) { barInset.toDp() })
                     .background(containerColor))
             }
             val sheetSurfaceModifier = Modifier
-                .align(Alignment.BottomCenter)
-                .downwardRubber(state)
-                .padding(bottom = with(density) { (bottomInset - navExtension).toDp() } + trayGap)
+                .align(edgeAlignment)
+                .edgeRubber(state, opensFromTop)
+                .padding(
+                    top = 0.dp,
+                    bottom = with(density) { if (opensFromTop) 0.dp else (bottomInset - navExtension).toDp() } + trayGap,
+                )
                 .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Horizontal))
                 .widthIn(max = maxWidth).fillMaxWidth()
                 .padding(horizontal = traySide)
                 .then(surfaceModifier)
                 .sheetSurfaceShadow(
-                    16.dp,
+                    if (opensFromTop) 0.dp else 16.dp,
                     surfaceShape,
                     floating = tray != null,
                 )
@@ -364,7 +387,11 @@ public fun BetterSheetHost(
             Layout(modifier = sheetSurfaceModifier, content = {
                 Layout(modifier = Modifier.fillMaxWidth()
                     .background(containerColor)
-                    .padding(bottom = with(density) { navExtension.toDp() })
+                    // The status bar is inside the same clipped sheet surface, not a separate cap.
+                    .padding(
+                        top = with(density) { if (opensFromTop) topInset.toDp() else 0.dp },
+                        bottom = with(density) { navExtension.toDp() },
+                    )
                     .then(if (behavior.draggable) Modifier.nestedScroll(nested).pointerInput(nested) {
                         awaitEachGesture {
                             awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
@@ -383,15 +410,17 @@ public fun BetterSheetHost(
                     }, content = {
                     // Foundation only: no Material theme is imposed on consumers.
                     CompositionLocalProvider(LocalSheetContentColor provides contentColor) {
+                        val dragModifier = Modifier.anchoredDraggable(
+                            state.anchored,
+                            orientation = Orientation.Vertical,
+                            reverseDirection = opensFromTop,
+                            enabled = behavior.draggable,
+                            overscrollEffect = edgeOverscroll,
+                            flingBehavior = fling,
+                        )
                         Column(Modifier.fillMaxWidth().onSizeChanged { headerHeight = it.height; headerMeasured = true }
-                            .anchoredDraggable(
-                                state.anchored,
-                                Orientation.Vertical,
-                                enabled = behavior.draggable,
-                                overscrollEffect = edgeOverscroll,
-                                flingBehavior = fling,
-                            )) {
-                            dragHandle?.invoke()
+                            .then(if (opensFromTop) Modifier else dragModifier)) {
+                            if (!opensFromTop) dragHandle?.invoke()
                             header?.invoke()
                         }
                         if (bodyMode == SheetBodyMode.Scroll) {
@@ -402,7 +431,10 @@ public fun BetterSheetHost(
                         } else {
                             Column(Modifier.fillMaxWidth().clipToBoundsForSheet(), content = content)
                         }
-                        Box(Modifier.fillMaxWidth().onSizeChanged { footerHeight = it.height; footerMeasured = true }) { footer?.invoke() }
+                        Column(Modifier.fillMaxWidth().onSizeChanged { footerHeight = it.height; footerMeasured = true }) {
+                            footer?.invoke()
+                            if (opensFromTop && dragHandle != null) Box(dragModifier) { dragHandle() }
+                        }
                     }
                 }) { parts, bounds ->
                     // A small window or tall header must not consume a fitting footer's space.
@@ -426,8 +458,9 @@ public fun BetterSheetHost(
                 val base = if (chrome == 0) availablePx else visibleHeight.coerceAtLeast(chrome.toFloat().coerceAtMost(availablePx))
                 // Compensate the external gap/extension so the top edge stays on its detent.
                 val adjustment = navExtension - trayGap.toPx()
-                val childHeight = (base + stretch + adjustment).roundToInt().coerceAtLeast(0)
-                val visible = (visibleHeight + stretch + adjustment).roundToInt().coerceAtLeast(0)
+                val topExtension = if (opensFromTop) topInset else 0
+                val childHeight = (base + stretch + adjustment + topExtension).roundToInt().coerceAtLeast(0)
+                val visible = (visibleHeight + stretch + adjustment + topExtension).roundToInt().coerceAtLeast(0)
                 val child = measurables.single().measure(Constraints.fixed(constraints.maxWidth, childHeight))
                 layout(constraints.maxWidth, visible) { child.place(0, 0) }
             }
@@ -447,8 +480,11 @@ public fun SheetDragHandle(modifier: Modifier = Modifier, color: Color = Color(0
 
 private fun Modifier.clipToBoundsForSheet(): Modifier = this.sheetDrawClip { androidx.compose.ui.graphics.RectangleShape }
 
-private fun Modifier.downwardRubber(state: SheetState): Modifier =
-    offset { IntOffset(0, downwardShift(state.rubberTranslation).roundToInt()) }
+private fun Modifier.edgeRubber(state: SheetState, opensFromTop: Boolean): Modifier =
+    offset {
+        val shift = downwardShift(state.rubberTranslation).roundToInt()
+        IntOffset(0, if (opensFromTop) -shift else shift)
+    }
 
 private tailrec fun Context.sheetHostActivity(): Activity? = when (this) {
     is Activity -> this

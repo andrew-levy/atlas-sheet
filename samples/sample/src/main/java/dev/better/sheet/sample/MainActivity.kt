@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import dev.better.sheet.SheetEdge
 import dev.better.sheet.*
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -72,6 +73,7 @@ object OpenTimings {
 
 enum class Demo(val label: String, val subtitle: String) {
     SnapPoints("Snap Points", "Peek, medium, expanded • scroll handoff"),
+    TopSheet("Top sheet", "Status bar • drag down to expand, up to dismiss"),
     Animations("Animations", "Spring • fade • slide + fade"),
     Tray("Floating tray", "Inset corners • continuous edge-to-edge morph"),
     Chat("Chat", "Lazy list • composer above keyboard"),
@@ -196,31 +198,35 @@ private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
             Spacer(Modifier.height(8.dp))
         }
     }
-    val footer: @Composable () -> Unit = {
-        Surface(shadowElevation = 6.dp) {
-            if (demo == Demo.Chat || demo == Demo.Heavy) {
-                Row(Modifier.fillMaxWidth().padding(16.dp).testTag("footer"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(message, { message = it }, placeholder = { Text("Message the team") }, modifier = Modifier.weight(1f).testTag("composer"), maxLines = 3, shape = RoundedCornerShape(24.dp))
-                    Button(onClick = {
-                        if (message.isNotBlank()) {
-                            if (demo == Demo.Heavy) heavyThread = heavyThread.orEmpty() + HeavyMessage("You", message, "sent") else {
-                                messages.add(message)
-                                chatList.requestScrollToItem(messages.lastIndex)
-                            }
-                            message = ""
+    val footerContent: @Composable () -> Unit = {
+        if (demo == Demo.Chat || demo == Demo.Heavy) {
+            Row(Modifier.fillMaxWidth().padding(16.dp).testTag("footer"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(message, { message = it }, placeholder = { Text("Message the team") }, modifier = Modifier.weight(1f).testTag("composer"), maxLines = 3, shape = RoundedCornerShape(24.dp))
+                Button(onClick = {
+                    if (message.isNotBlank()) {
+                        if (demo == Demo.Heavy) heavyThread = heavyThread.orEmpty() + HeavyMessage("You", message, "sent") else {
+                            messages.add(message)
+                            chatList.requestScrollToItem(messages.lastIndex)
                         }
-                    }, modifier = Modifier.testTag("send")) { Text("Send") }
-                }
-            } else {
-                Column(Modifier.fillMaxWidth().padding(16.dp).testTag("footer")) {
-                    Button(onClick = {
-                        if (demo == Demo.Fit) extra = !extra else scope.launch { state.hide() }
-                    }, modifier = Modifier.fillMaxWidth().testTag("primary-action")) {
-                        Text(if (demo == Demo.Fit) if (extra) "Show fewer options" else "Show more options" else if (demo == Demo.Locked) "Complete & close" else "Continue")
+                        message = ""
                     }
+                }, modifier = Modifier.testTag("send")) { Text("Send") }
+            }
+        } else {
+            Column(Modifier.fillMaxWidth().padding(16.dp).testTag("footer")) {
+                Button(onClick = {
+                    if (demo == Demo.Fit) extra = !extra else scope.launch { state.hide() }
+                }, modifier = Modifier.fillMaxWidth().testTag("primary-action")) {
+                    Text(if (demo == Demo.Fit) if (extra) "Show fewer options" else "Show more options" else if (demo == Demo.Locked) "Complete & close" else "Continue")
                 }
             }
         }
+    }
+    val footer: @Composable () -> Unit = {
+        // The top-sheet footer is a sticky slot within the sheet's existing
+        // rounded/clipped surface; it doesn't need its own elevated Surface.
+        if (demo == Demo.TopSheet) footerContent()
+        else Surface(shadowElevation = 6.dp) { footerContent() }
     }
     val body: @Composable ColumnScope.() -> Unit = {
         when (demo) {
@@ -245,7 +251,7 @@ private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
                 }
             }
             else -> LazyColumn(Modifier.fillMaxSize().testTag("body-list"), contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                item { Text(if (demo == Demo.Locked) "Try Back, the scrim, and dragging down. This flow only closes explicitly." else "Drag the handle or scroll this list. The footer remains outside the scrolling viewport.", color = Color(0xFF68728A)) }
+                item { Text(if (demo == Demo.Locked) "Try Back, the scrim, and dragging down. This flow only closes explicitly." else if (demo == Demo.TopSheet) "Drag down to expand, swipe up to collapse, or scroll through the list." else "Drag the handle or scroll this list. The footer remains outside the scrolling viewport.", color = Color(0xFF68728A)) }
                 items(100, key = { it }) { i ->
                     Row(Modifier.fillMaxWidth().background(Paper, RoundedCornerShape(14.dp)).padding(18.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text("%02d".format(i + 1), color = Accent, fontWeight = FontWeight.Bold)
@@ -260,7 +266,11 @@ private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
         BetterSheetHost(state, snapPoints, behavior = behavior, bodyMode = mode, title = demo.label, scrimColor = Color.Unspecified, header = header, footer = footer, content = body)
         LaunchedEffect(state) { snapshotFlow { state.currentSnapPoint }.collect { if (it == null) close() } }
     } else {
+        val handle: (@Composable () -> Unit)? =
+            if (demo == Demo.TopSheet) null else ({ SheetDragHandle() })
         BetterModalSheet(state, snapPoints, close, behavior = behavior, bodyMode = mode, title = demo.label,
+            edge = if (demo == Demo.TopSheet) SheetEdge.Top else SheetEdge.Bottom,
+            dragHandle = handle,
             presentation = if (demo == Demo.Tray) SheetPresentation.Tray() else SheetPresentation.Standard,
             header = header, footer = footer, content = body)
     }

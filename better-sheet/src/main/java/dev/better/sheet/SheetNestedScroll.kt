@@ -15,10 +15,12 @@ internal class SheetNestedScroll(
     private val transferFling: Boolean = true,
     private val handoffThreshold: Float = velocityThreshold,
     private val velocityScale: Float = 1f,
+    private val reverseDirection: Boolean = false,
 ) : NestedScrollConnection {
     private enum class Owner { Undecided, Content, Sheet }
     private var owner = Owner.Content
     private var moved = false
+    private val direction = if (reverseDirection) -1f else 1f
 
     // Reset on an actual new touch, never on direction changes or fling frames.
     fun beginGesture() {
@@ -37,22 +39,22 @@ internal class SheetNestedScroll(
         if (consumed.y != 0f) owner = Owner.Content
         if (owner == Owner.Undecided && available.y != 0f) {
             val enabled = if (available.y > 0f) bubbleAtTop else bubbleAtBottom
-            owner = if (enabled && state.canConsumeNestedDrag(available.y)) Owner.Sheet else Owner.Content
+            owner = if (enabled && state.canConsumeNestedDrag(available.y * direction)) Owner.Sheet else Owner.Content
         }
         return if (owner == Owner.Sheet) consume(available.y) else Offset.Zero
     }
 
     private fun consume(delta: Float): Offset {
-        val consumed = state.consumeNestedDrag(delta)
+        val consumed = state.consumeNestedDrag(delta * direction)
         if (consumed != 0f) moved = true
-        return Offset(0f, consumed)
+        return Offset(0f, consumed * direction)
     }
 
     override suspend fun onPreFling(available: Velocity): Velocity {
         if (!moved) return Velocity.Zero
         moved = false
         val velocity = if (transferFling && abs(available.y) >= handoffThreshold)
-            available.y * velocityScale else 0f
+            available.y * velocityScale * direction else 0f
         state.finishGesture(velocity, velocityThreshold)
         return Velocity(0f, available.y)
     }
