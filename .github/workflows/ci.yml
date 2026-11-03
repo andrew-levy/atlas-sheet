@@ -78,7 +78,7 @@ jobs:
             device-diagnostics/
   demos:
     env:
-      SCENARIOS: snapPoints tabs chat contentFit stacked scrollHandoff tray
+      SCENARIOS: snapPoints tabs chat contentFit stacked scrollHandoff tray topSheet
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -154,7 +154,7 @@ jobs:
         if: steps.current.outputs.publish == 'true'
         env:
           RECORDINGS: ${{ runner.temp }}/demo-videos
-          SCENARIOS: snapPoints tabs chat contentFit stacked scrollHandoff tray
+          SCENARIOS: snapPoints tabs chat contentFit stacked scrollHandoff tray topSheet
           BRANCH_NAME: ${{ github.ref_name }}
         run: |
           python3 - <<'PY'

@@ -89,6 +89,16 @@ class DemoRecordingTest {
         }
     }
 
+    @Test fun topSheet() {
+        open("TopSheet")
+        listOf("expanded", "peek", "medium").forEach { snapPoint ->
+            compose.onNodeWithTag("snap-point-$snapPoint").performClick()
+            pause()
+        }
+        compose.onNodeWithTag("close").performClick()
+        pause()
+    }
+
     @Test fun snapPoints() {
         open("SnapPoints")
         listOf("peek", "expanded", "medium").forEach { compose.onNodeWithTag("snap-point-$it").performClick(); pause() }

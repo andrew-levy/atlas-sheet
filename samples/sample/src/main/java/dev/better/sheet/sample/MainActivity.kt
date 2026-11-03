@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import dev.better.sheet.SheetEdge
 import dev.better.sheet.*
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -72,6 +73,7 @@ object OpenTimings {
 
 enum class Demo(val label: String, val subtitle: String) {
     SnapPoints("Snap Points", "Peek, medium, expanded • scroll handoff"),
+    TopSheet("Top sheet", "Status bar • drag down to expand, up to dismiss"),
     Animations("Animations", "Spring • fade • slide + fade"),
     Tray("Floating tray", "Inset corners • continuous edge-to-edge morph"),
     Chat("Chat", "Lazy list • composer above keyboard"),
@@ -261,6 +263,7 @@ private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
         LaunchedEffect(state) { snapshotFlow { state.currentSnapPoint }.collect { if (it == null) close() } }
     } else {
         BetterModalSheet(state, snapPoints, close, behavior = behavior, bodyMode = mode, title = demo.label,
+            edge = if (demo == Demo.TopSheet) SheetEdge.Top else SheetEdge.Bottom,
             presentation = if (demo == Demo.Tray) SheetPresentation.Tray() else SheetPresentation.Standard,
             header = header, footer = footer, content = body)
     }

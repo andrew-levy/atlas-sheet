@@ -12,9 +12,9 @@ import shutil
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-SCENARIOS = ['snapPoints', 'tabs', 'chat', 'contentFit', 'stacked', 'scrollHandoff', 'tray']
+SCENARIOS = ['snapPoints', 'tabs', 'chat', 'contentFit', 'stacked', 'scrollHandoff', 'tray', 'topSheet']
 PACKAGE = 'dev.better.sheet.findmy'
-FRAMES = f'/sdcard/Android/data/{PACKAGE}/files/demo-frames'
+
 FRAME_MILLIS = 32  # DemoRecordingTest.FRAME_MILLIS
 SCENARIO_TIMEOUT = 900  # seconds
 
@@ -38,18 +38,20 @@ def encode_preview(source, gif, framerate=None):
         '-loop', '0', str(gif))
 
 def record(scenario, work):
+    package = 'dev.better.sheet.sample' if scenario == 'topSheet' else PACKAGE
+    device_frames = f'/sdcard/Android/data/{package}/files/demo-frames'
     out = ROOT / 'docs' / 'videos'
     out.mkdir(parents=True, exist_ok=True)
-    run('adb', 'shell', 'am', 'force-stop', PACKAGE)
+    run('adb', 'shell', 'am', 'force-stop', package)
     try:
-        result = run('adb', 'shell', 'am', 'instrument', '-w', '-e', 'class', f'{PACKAGE}.DemoRecordingTest#{scenario}', f'{PACKAGE}.test/androidx.test.runner.AndroidJUnitRunner', capture_output=True, text=True, timeout=SCENARIO_TIMEOUT)
+        result = run('adb', 'shell', 'am', 'instrument', '-w', '-e', 'class', f'{package}.DemoRecordingTest#{scenario}', f'{package}.test/androidx.test.runner.AndroidJUnitRunner', capture_output=True, text=True, timeout=SCENARIO_TIMEOUT)
     except subprocess.TimeoutExpired:
-        subprocess.run(['adb', 'shell', 'am', 'force-stop', PACKAGE], check=False)
+        subprocess.run(['adb', 'shell', 'am', 'force-stop', package], check=False)
         raise RuntimeError(f'{scenario} did not finish within {SCENARIO_TIMEOUT}s')
     if 'OK (1 test)' not in result.stdout:
         raise RuntimeError(result.stdout)
-    run('adb', 'pull', f'{FRAMES}/{scenario}', str(work), stdout=subprocess.DEVNULL)
-    run('adb', 'shell', 'rm', '-rf', f'{FRAMES}/{scenario}')
+    run('adb', 'pull', f'{device_frames}/{scenario}', str(work), stdout=subprocess.DEVNULL)
+    run('adb', 'shell', 'rm', '-rf', f'{device_frames}/{scenario}')
     frames = work / scenario
     count = len(list(frames.glob('*.jpg')))
     encode(frames, out / f'{scenario}.mp4', out / f'{scenario}.gif')
@@ -63,17 +65,25 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if any(name not in SCENARIOS for name in args.scenarios):
         parser.error('Scenarios: ' + ', '.join(SCENARIOS))
+    scenarios = args.scenarios or SCENARIOS
+    modules = []
+    if any(name != 'topSheet' for name in scenarios):
+        modules.append('findmy')
+    if 'topSheet' in scenarios:
+        modules.append('sample')
     if not args.skip_build:
-        run(str(ROOT / 'gradlew'), ':findmy:assembleDebug', ':findmy:assembleDebugAndroidTest', cwd=ROOT)
-        # MapLibre and the emulator need the RAM after compilation; do not retain the build JVM.
+        tasks = [f':{module}:{task}' for module in modules for task in ('assembleDebug', 'assembleDebugAndroidTest')]
+        run(str(ROOT / 'gradlew'), *tasks, cwd=ROOT)
         run(str(ROOT / 'gradlew'), '--stop', cwd=ROOT)
     run('adb', 'wait-for-device')
-    run('adb', 'install', '-r', str(ROOT / 'samples/findmy/build/outputs/apk/debug/findmy-debug.apk'))
-    run('adb', 'install', '-r', str(ROOT / 'samples/findmy/build/outputs/apk/androidTest/debug/findmy-debug-androidTest.apk'))
+    for module in modules:
+        apk_dir = ROOT / 'samples' / module / 'build' / 'outputs' / 'apk'
+        run('adb', 'install', '-r', str(apk_dir / 'debug' / f'{module}-debug.apk'))
+        run('adb', 'install', '-r', str(apk_dir / 'androidTest' / 'debug' / f'{module}-debug-androidTest.apk'))
     run('adb', 'shell', 'settings', 'put', 'secure', 'show_ime_with_hard_keyboard', '1')
     failures = []
     with tempfile.TemporaryDirectory() as work:
-        for scenario in args.scenarios or SCENARIOS:
+        for scenario in scenarios:
             try:
                 record(scenario, Path(work))
             except Exception as error:
