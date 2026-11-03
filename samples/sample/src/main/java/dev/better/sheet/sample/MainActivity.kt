@@ -264,7 +264,7 @@ private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
     } else {
         BetterModalSheet(state, snapPoints, close, behavior = behavior, bodyMode = mode, title = demo.label,
             edge = if (demo == Demo.TopSheet) SheetEdge.Top else SheetEdge.Bottom,
-            dragHandle = if (demo == Demo.TopSheet) null else { { SheetDragHandle() } },
+            dragHandle = if (demo == Demo.TopSheet) null else { SheetDragHandle() },
             presentation = if (demo == Demo.Tray) SheetPresentation.Tray() else SheetPresentation.Standard,
             header = header, footer = if (demo == Demo.TopSheet) null else footer, content = body)
     }
