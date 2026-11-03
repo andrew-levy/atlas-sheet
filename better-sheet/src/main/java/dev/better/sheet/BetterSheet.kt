@@ -404,7 +404,7 @@ public fun BetterSheetHost(
                     CompositionLocalProvider(LocalSheetContentColor provides contentColor) {
                         val dragModifier = Modifier.anchoredDraggable(
                             state.anchored,
-                            Orientation.Vertical,
+                            orientation = Orientation.Vertical,
                             reverseDirection = opensFromTop,
                             enabled = behavior.draggable,
                             overscrollEffect = edgeOverscroll,
