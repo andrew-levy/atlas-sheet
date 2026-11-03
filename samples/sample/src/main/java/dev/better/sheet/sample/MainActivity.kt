@@ -262,9 +262,11 @@ private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
         BetterSheetHost(state, snapPoints, behavior = behavior, bodyMode = mode, title = demo.label, scrimColor = Color.Unspecified, header = header, footer = footer, content = body)
         LaunchedEffect(state) { snapshotFlow { state.currentSnapPoint }.collect { if (it == null) close() } }
     } else {
+        val handle: (@Composable () -> Unit)? =
+            if (demo == Demo.TopSheet) null else ({ SheetDragHandle() })
         BetterModalSheet(state, snapPoints, close, behavior = behavior, bodyMode = mode, title = demo.label,
             edge = if (demo == Demo.TopSheet) SheetEdge.Top else SheetEdge.Bottom,
-            dragHandle = if (demo == Demo.TopSheet) null else { SheetDragHandle() },
+            dragHandle = handle,
             presentation = if (demo == Demo.Tray) SheetPresentation.Tray() else SheetPresentation.Standard,
             header = header, footer = if (demo == Demo.TopSheet) null else footer, content = body)
     }
