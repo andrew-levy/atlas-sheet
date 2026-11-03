@@ -64,7 +64,7 @@ public fun BetterSheet(
     }
     BetterSheetHost(
         state, snapPoints, modifier, behavior, bodyMode, title, maxWidth, topMargin,
-        containerColor, contentColor, scrimColor, SheetEdge.Bottom, shape, dragHandle, header, footer, surfaceModifier, presentation, enterTransition, exitTransition, snapAnimationSpec, content,
+        containerColor, contentColor, scrimColor, shape, dragHandle, header, footer, surfaceModifier, presentation, enterTransition, exitTransition, snapAnimationSpec, SheetEdge.Bottom, content,
     )
 }
 

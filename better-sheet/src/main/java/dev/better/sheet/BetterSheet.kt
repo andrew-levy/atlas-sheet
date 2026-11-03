@@ -75,9 +75,7 @@ public fun BetterModalSheet(
     containerColor: Color = Color.White,
     contentColor: Color = Color(0xFF172033),
     scrimColor: Color = Color.Black.copy(alpha = 0.42f),
-    edge: SheetEdge = SheetEdge.Bottom,
-    shape: Shape = if (edge == SheetEdge.Top) RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
-        else RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+    shape: Shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
     dragHandle: @Composable (() -> Unit)? = { SheetDragHandle() },
     header: @Composable (() -> Unit)? = null,
     footer: @Composable (() -> Unit)? = null,
@@ -87,6 +85,7 @@ public fun BetterModalSheet(
     enterTransition: EnterTransition = slideInVertically(defaultSheetSpring(IntOffset(1, 1))) { if (edge == SheetEdge.Top) -it else it },
     exitTransition: ExitTransition = slideOutVertically(defaultSheetSpring(IntOffset(1, 1))) { if (edge == SheetEdge.Top) -it else it },
     snapAnimationSpec: AnimationSpec<Float> = defaultSheetSpring(),
+    edge: SheetEdge = SheetEdge.Bottom,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     SideEffect { state.prepareModalPresentation() }
@@ -136,7 +135,7 @@ public fun BetterModalSheet(
         CompositionLocalProvider(LocalSheetStackEntry provides entry) {
             BetterSheetHost(
                 state, snapPoints, modifier, behavior, bodyMode, title, maxWidth, topMargin,
-                containerColor, contentColor, scrimColor, edge, shape, dragHandle, header, footer, surfaceModifier, presentation, enterTransition, exitTransition, snapAnimationSpec, content,
+                containerColor, contentColor, scrimColor, shape, dragHandle, header, footer, surfaceModifier, presentation, enterTransition, exitTransition, snapAnimationSpec, edge, content,
             )
         }
     }
@@ -156,9 +155,7 @@ public fun BetterSheetHost(
     containerColor: Color = Color.White,
     contentColor: Color = Color(0xFF172033),
     scrimColor: Color = Color.Black.copy(alpha = 0.42f),
-    edge: SheetEdge = SheetEdge.Bottom,
-    shape: Shape = if (edge == SheetEdge.Top) RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
-        else RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+    shape: Shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
     dragHandle: @Composable (() -> Unit)? = { SheetDragHandle() },
     header: @Composable (() -> Unit)? = null,
     footer: @Composable (() -> Unit)? = null,
@@ -167,6 +164,7 @@ public fun BetterSheetHost(
     enterTransition: EnterTransition = slideInVertically(defaultSheetSpring(IntOffset(1, 1))) { if (edge == SheetEdge.Top) -it else it },
     exitTransition: ExitTransition = slideOutVertically(defaultSheetSpring(IntOffset(1, 1))) { if (edge == SheetEdge.Top) -it else it },
     snapAnimationSpec: AnimationSpec<Float> = defaultSheetSpring(),
+    edge: SheetEdge = SheetEdge.Bottom,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     require(snapPoints.isNotEmpty() && snapPoints.map { it.id }.distinct().size == snapPoints.size)
@@ -339,7 +337,13 @@ public fun BetterSheetHost(
             val reported = with(density) { deviceCornerRadius.toDp() } - it.horizontalInset
             if (it.matchDeviceCorners && hostReachesWindowEdges && deviceCornerRadius > 0f) reported.coerceAtLeast(0.dp) else it.cornerRadius
         } ?: 0.dp
-        val surfaceShape = if (tray == null) shape else RoundedCornerShape(
+        // Preserve the existing default bottom-sheet shape for callers. Only the
+        // implicit/default shape mirrors to the lower corners for top sheets.
+        val defaultBottomShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        val resolvedShape = if (opensFromTop && shape == defaultBottomShape) {
+            RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
+        } else shape
+        val surfaceShape = if (tray == null) resolvedShape else RoundedCornerShape(
             topStart = radius * (1f - morph) + tray.expandedCornerRadius * morph,
             topEnd = radius * (1f - morph) + tray.expandedCornerRadius * morph,
             bottomStart = radius * (1f - morph), bottomEnd = radius * (1f - morph),
