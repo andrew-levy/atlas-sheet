@@ -38,13 +38,14 @@ def encode_preview(source, gif, framerate=None):
         '-loop', '0', str(gif))
 
 def record(scenario, work):
-    package = 'dev.better.sheet.sample' if scenario == 'topSheet' else PACKAGE
+    package = 'dev.better.sheet.sample' if scenario in ('topSheet', 'glass') else PACKAGE
     device_frames = f'/sdcard/Android/data/{package}/files/demo-frames'
     out = ROOT / 'docs' / 'videos'
     out.mkdir(parents=True, exist_ok=True)
     run('adb', 'shell', 'am', 'force-stop', package)
+    test_class = 'GlassRecordingTest' if scenario == 'glass' else 'DemoRecordingTest'
     try:
-        result = run('adb', 'shell', 'am', 'instrument', '-w', '-e', 'class', f'{package}.DemoRecordingTest#{scenario}', f'{package}.test/androidx.test.runner.AndroidJUnitRunner', capture_output=True, text=True, timeout=SCENARIO_TIMEOUT)
+        result = run('adb', 'shell', 'am', 'instrument', '-w', '-e', 'class', f'{package}.{test_class}#{scenario}', f'{package}.test/androidx.test.runner.AndroidJUnitRunner', capture_output=True, text=True, timeout=SCENARIO_TIMEOUT)
     except subprocess.TimeoutExpired:
         subprocess.run(['adb', 'shell', 'am', 'force-stop', package], check=False)
         raise RuntimeError(f'{scenario} did not finish within {SCENARIO_TIMEOUT}s')
@@ -63,13 +64,13 @@ if __name__ == '__main__':
     parser.add_argument('scenarios', nargs='*', metavar='SCENARIO')
     parser.add_argument('--skip-build', action='store_true')
     args = parser.parse_args()
-    if any(name not in SCENARIOS for name in args.scenarios):
+    if any(name not in SCENARIOS + ['glass'] for name in args.scenarios):
         parser.error('Scenarios: ' + ', '.join(SCENARIOS))
     scenarios = args.scenarios or SCENARIOS
     modules = []
-    if any(name != 'topSheet' for name in scenarios):
+    if any(name not in ('topSheet', 'glass') for name in scenarios):
         modules.append('findmy')
-    if 'topSheet' in scenarios:
+    if any(name in ('topSheet', 'glass') for name in scenarios):
         modules.append('sample')
     if not args.skip_build:
         tasks = [f':{module}:{task}' for module in modules for task in ('assembleDebug', 'assembleDebugAndroidTest')]

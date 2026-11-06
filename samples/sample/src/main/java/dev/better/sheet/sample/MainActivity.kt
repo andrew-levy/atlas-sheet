@@ -123,6 +123,9 @@ private fun Gallery(autoOpen: Demo?) {
                 }
             }
             item {
+                Button(onClick = { context.startActivity(Intent(context, GlassActivity::class.java)) }) { Text("Liquid glass playground") }
+            }
+            item {
                 Button(onClick = { context.startActivity(Intent(context, FragmentDemoActivity::class.java)) }) {
                     Text("Fragment root example")
                 }

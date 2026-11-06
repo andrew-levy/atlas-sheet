@@ -1,0 +1,15 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent">
+    <ScrollView android:id="@+id/backdrop" android:layout_width="match_parent"
+        android:layout_height="match_parent" android:scrollbars="none">
+        <LinearLayout android:id="@+id/places" android:orientation="vertical"
+            android:layout_width="match_parent" android:layout_height="wrap_content">
+            <ImageView android:layout_width="match_parent" android:layout_height="620dp"
+                android:scaleType="centerCrop" android:src="@drawable/alpine_lake"
+                android:contentDescription="Illustration of an alpine lake" />
+        </LinearLayout>
+    </ScrollView>
+    <dev.better.sheet.sample.GlassView android:id="@+id/glass"
+        android:layout_width="280dp" android:layout_height="108dp"
+        android:layout_gravity="center" android:contentDescription="Draggable glass pane" />
+</FrameLayout>
