@@ -16,6 +16,7 @@ class GlassView(context: Context, attrs: AttributeSet?) : View(context, attrs) {
     private val bounds = RectF()
     private lateinit var sample: Bitmap
     private lateinit var capture: Canvas
+    private val lens = if (android.os.Build.VERSION.SDK_INT >= 33) LensShader() else null
     private val cells = 12
     private val mesh = FloatArray((cells + 1) * (cells + 1) * 2)
     private var grabX = 0f
@@ -24,8 +25,9 @@ class GlassView(context: Context, attrs: AttributeSet?) : View(context, attrs) {
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         if (w == 0 || h == 0) return
-        sample = Bitmap.createBitmap(max(2, (w / (5 * dp)).roundToInt()), max(2, (h / (5 * dp)).roundToInt()), Bitmap.Config.ARGB_8888)
+        sample = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         capture = Canvas(sample)
+        lens?.setBackdrop(sample)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -48,26 +50,35 @@ class GlassView(context: Context, attrs: AttributeSet?) : View(context, attrs) {
         clip.addRoundRect(bounds, corner, corner, Path.Direction.CW)
         canvas.save()
         canvas.clipPath(clip)
-        var i = 0
-        for (row in 0..cells) for (col in 0..cells) {
-            val u = 2f * col / cells - 1
-            val v = 2f * row / cells - 1
-            val bend = (1 - u * u) * (1 - v * v)
-            mesh[i++] = (1 + u + .20f * u * bend) * w / 2
-            mesh[i++] = (1 + v + .27f * v * bend) * h / 2
+        if (lens != null) {
+            paint.color = Color.WHITE
+            paint.shader = lens.frame(w, h, corner, dp, tilt)
+            canvas.drawRoundRect(bounds, corner, corner, paint)
+            paint.shader = null
+        } else {
+            var i = 0
+            for (row in 0..cells) for (col in 0..cells) {
+                val u = 2f * col / cells - 1
+                val v = 2f * row / cells - 1
+                val bend = (1 - u * u) * (1 - v * v)
+                mesh[i++] = (1 + u + .20f * u * bend) * w / 2
+                mesh[i++] = (1 + v + .27f * v * bend) * h / 2
+            }
+            paint.color = Color.WHITE
+            canvas.drawBitmapMesh(sample, cells, cells, mesh, 0, null, 0, paint)
+            paint.shader = LinearGradient(w * (.15f + tilt * .12f), 0f, w * .78f, h, 0x68FFFFFF, 0x22214452, Shader.TileMode.CLAMP)
+            canvas.drawPath(clip, paint)
+            paint.shader = null
         }
-        paint.color = Color.WHITE
-        canvas.drawBitmapMesh(sample, cells, cells, mesh, 0, null, 0, paint)
-        paint.shader = LinearGradient(w * (.15f + tilt * .12f), 0f, w * .78f, h, 0x68FFFFFF, 0x22214452, Shader.TileMode.CLAMP)
-        canvas.drawPath(clip, paint)
-        paint.shader = null
         canvas.restore()
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 1.6f * dp
-        paint.shader = LinearGradient(w * (.2f + tilt * .2f), 0f, w * .8f, h, intArrayOf(0xEFFFFFFF.toInt(), 0x40FFFFFF, 0xA0FFFFFF.toInt()), null, Shader.TileMode.CLAMP)
-        canvas.drawPath(clip, paint)
-        paint.shader = null
-        paint.style = Paint.Style.FILL
+        if (lens == null) {
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 1.6f * dp
+            paint.shader = LinearGradient(w * (.2f + tilt * .2f), 0f, w * .8f, h, intArrayOf(0xEFFFFFFF.toInt(), 0x40FFFFFF, 0xA0FFFFFF.toInt()), null, Shader.TileMode.CLAMP)
+            canvas.drawPath(clip, paint)
+            paint.shader = null
+            paint.style = Paint.Style.FILL
+        }
         paint.color = Color.WHITE
         paint.textAlign = Paint.Align.CENTER
         paint.setShadowLayer(2 * dp, 0f, dp, 0x880D2930.toInt())

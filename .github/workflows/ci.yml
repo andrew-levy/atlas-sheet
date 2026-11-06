@@ -169,6 +169,8 @@ jobs:
           destination = Path("docs/videos")
           scenarios = os.environ["SCENARIOS"].split()
           expected = {f"{scenario}.{extension}" for scenario in scenarios for extension in ("gif", "mp4")}
+          if 'glass' in scenarios:
+              expected.add('glass-detail.png')
           actual = {p.name for p in source.iterdir()}
           if not expected <= actual:
               raise SystemExit(f"Missing demo files: {expected - actual}")

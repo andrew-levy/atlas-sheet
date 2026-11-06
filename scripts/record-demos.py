@@ -56,6 +56,9 @@ def record(scenario, work):
     frames = work / scenario
     count = len(list(frames.glob('*.jpg')))
     encode(frames, out / f'{scenario}.mp4', out / f'{scenario}.gif')
+    if scenario == 'glass':
+        # Include a 1:1 detail frame alongside the phone-sized animation.
+        run('ffmpeg', '-v', 'error', '-y', '-i', str(frames / '00015.jpg'), '-vf', 'crop=iw:ih/3:0:ih/3', str(out / 'glass-detail.png'))
     shutil.rmtree(frames)
     print(f'Recorded {scenario} ({count} frames, {count * FRAME_MILLIS / 1000:.1f}s)', flush=True)
 
