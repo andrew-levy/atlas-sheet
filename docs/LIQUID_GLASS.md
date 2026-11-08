@@ -10,7 +10,7 @@ of Apple's private renderer.
 
 ## Use in an XML layout
 
-Copy `GlassView.kt` and `LensShader.kt` into your app (adjust their package). Place the
+Copy `GlassView.kt`, `GlassMotion.kt`, and `LensShader.kt` into your app (adjust their package). Place the
 source and overlay in the same window. They can be in different nested containers.
 The source must not contain the glass view. Avoid cycles between glass backdrops.
 

@@ -134,7 +134,10 @@ internal class LensShader {
                 * half(coverage);
         }
     """.trimIndent())
-    private var cachedBlur = -1f
+    // HWUI snapshots the shader's uniform state as part of RenderEffect.
+    // A mutable RuntimeShader alone does not reliably invalidate an existing
+    // RenderEffect when refraction, geometry, or lighting parameters change.
+    private var lastEffectParameters = floatArrayOf()
     private var cachedEffect: RenderEffect? = null
 
     fun draw(
@@ -178,13 +181,23 @@ internal class LensShader {
         shader.setFloatUniform("outerHeight", outerHeight)
         shader.setFloatUniform("outerAmount", outerAmount)
 
-        if (cachedEffect == null || cachedBlur != blur) {
+        val parameters = floatArrayOf(
+            blur, innerHeight, innerAmount, density,
+            first.left, first.top, first.right, first.bottom, motion.primaryRadius,
+            second.left, second.top, second.right, second.bottom, motion.secondaryRadius,
+            motion.mergeAmount, motion.smoothness, motion.leanX, motion.leanY,
+            motion.pressAmount, motion.lightX, motion.lightY, motion.glowAmount
+        )
+        if (cachedEffect == null || !lastEffectParameters.contentEquals(parameters)) {
+            // Rebind the effect when any optical/shape parameter changes.
+            // Scrolling alone can still reuse it, while the backing display
+            // list is recorded again with the fresh content.
             val optical = RenderEffect.createRuntimeShaderEffect(shader, "content")
             cachedEffect = if (blur > 0f) {
                 RenderEffect.createChainEffect(optical,
                     RenderEffect.createBlurEffect(blur, blur, Shader.TileMode.CLAMP))
             } else optical
-            cachedBlur = blur
+            lastEffectParameters = parameters
         }
         node.setPosition(0, 0, w, h)
         node.setRenderEffect(cachedEffect)

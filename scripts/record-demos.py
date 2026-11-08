@@ -105,6 +105,28 @@ def record_glass():
     run('adb', 'shell', 'rm', '-f', remote)
     if not movie.is_file() or movie.stat().st_size < 1024:
         raise RuntimeError('Screen recorder did not produce a playable MP4')
+    # An emulator can return success from screenrecord while producing black
+    # H.264 frames. Reject that output instead of publishing a misleading video.
+    averages = []
+    for second in (3, 10):
+        pixels = subprocess.run([
+            'ffmpeg', '-v', 'error', '-ss', str(second), '-i', str(movie),
+            '-frames:v', '1', '-vf', 'scale=32:32,format=rgb24',
+            '-f', 'rawvideo', 'pipe:1',
+        ], capture_output=True, check=True, timeout=18).stdout
+        if not pixels:
+            raise RuntimeError(f'No video frame at {second}s')
+        averages.append(sum(pixels) / len(pixels))
+    print(f'Glass video mean RGB values: {averages}', flush=True)
+    if max(averages) < 12:
+        logs = subprocess.run(['adb', 'logcat', '-d', '-t', '400'],
+            capture_output=True, text=True, timeout=12)
+        relevant = [line for line in logs.stdout.splitlines()
+            if any(word in line for word in ('FATAL EXCEPTION', 'AndroidRuntime',
+                'RuntimeShader', 'RenderEffect', 'GlassActivity', 'OpenGLRenderer'))]
+        print('\n'.join(relevant[-80:]), flush=True)
+        raise RuntimeError('Glass recording is black; refusing to publish video')
+
     encode_preview(movie, out / 'glass.gif')
     run('ffmpeg', '-v', 'error', '-y', '-ss', '3', '-i', str(movie),
         '-frames:v', '1', '-vf', 'crop=iw:ih/3:0:ih/3',

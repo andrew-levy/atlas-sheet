@@ -187,7 +187,9 @@ class GlassView @JvmOverloads constructor(
         matrixToRoot(this, localMatrix)
         if (!localMatrix.invert(inverseMatrix)) return
         sourceMatrix.setConcat(inverseMatrix, sourceMatrix)
-        sourceMatrix.preTranslate(-source.scrollX.toFloat(), -source.scrollY.toFloat())
+        // source.draw() already applies the source's own internal scroll.
+        // Parent scrolling is handled in matrixToRoot; subtracting source
+        // scroll here would double-offset a ScrollView backdrop.
         if (motion.primary.isEmpty) motion.useDefault(width, height, cornerRadius)
 
         capturing = true
