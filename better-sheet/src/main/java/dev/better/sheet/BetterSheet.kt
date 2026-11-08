@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -86,6 +87,7 @@ public fun BetterModalSheet(
     enterTransition: EnterTransition = slideInVertically(defaultSheetSpring(IntOffset(1, 1))) { if (edge == SheetEdge.Top) -it else it },
     exitTransition: ExitTransition = slideOutVertically(defaultSheetSpring(IntOffset(1, 1))) { if (edge == SheetEdge.Top) -it else it },
     snapAnimationSpec: AnimationSpec<Float> = defaultSheetSpring(),
+    surface: SheetSurface? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     SideEffect { state.prepareModalPresentation() }
@@ -135,13 +137,18 @@ public fun BetterModalSheet(
         CompositionLocalProvider(LocalSheetStackEntry provides entry) {
             BetterSheetHost(
                 state, snapPoints, modifier, behavior, bodyMode, title, maxWidth, topMargin,
-                containerColor, contentColor, scrimColor, shape, dragHandle, header, footer, surfaceModifier, presentation, edge, enterTransition, exitTransition, snapAnimationSpec, content,
+                containerColor, contentColor, scrimColor, shape, dragHandle, header, footer, surfaceModifier, presentation, edge, enterTransition, exitTransition, snapAnimationSpec, surface, content,
             )
         }
     }
 }
 
-/** Inline overlay. Put last in a full-size Box. Scrim color controls drawing only; SheetBehavior controls outside touches. */
+/**
+ * Inline overlay. Put last in a full-size Box. Scrim color controls drawing only;
+ * SheetBehavior controls outside touches. [surface] replaces solid paint without replacing
+ * layout, gestures, content slots or the default shadow; see [SheetSurface].
+ * [surfaceModifier] remains an outer decorator, including for existing solid callers.
+ */
 @Composable
 public fun BetterSheetHost(
     state: SheetState,
@@ -165,6 +172,7 @@ public fun BetterSheetHost(
     enterTransition: EnterTransition = slideInVertically(defaultSheetSpring(IntOffset(1, 1))) { if (edge == SheetEdge.Top) -it else it },
     exitTransition: ExitTransition = slideOutVertically(defaultSheetSpring(IntOffset(1, 1))) { if (edge == SheetEdge.Top) -it else it },
     snapAnimationSpec: AnimationSpec<Float> = defaultSheetSpring(),
+    surface: SheetSurface? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     require(snapPoints.isNotEmpty() && snapPoints.map { it.id }.distinct().size == snapPoints.size)
@@ -348,6 +356,7 @@ public fun BetterSheetHost(
             topEnd = radius * (1f - morph) + tray.expandedCornerRadius * morph,
             bottomStart = radius * (1f - morph), bottomEnd = radius * (1f - morph),
         )
+        val materialScope = SheetSurfaceScope(surfaceShape, edge, presentation, SheetSurfaceRegion.Body)
         // Animate the surface and its system bar background together.
         // The body remains composed and measured while hidden, preserving content state.
         Box(Modifier.align(edgeAlignment).then(with(visibilityScope) {
@@ -363,7 +372,9 @@ public fun BetterSheetHost(
                     .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Horizontal))
                     .widthIn(max = maxWidth).fillMaxWidth()
                     .height(with(density) { barInset.toDp() })
-                    .background(containerColor))
+                    .then(surface?.modifier(SheetSurfaceScope(
+                        RectangleShape, edge, presentation, SheetSurfaceRegion.NavigationBar,
+                    )) ?: Modifier.background(containerColor)))
             }
             val sheetSurfaceModifier = Modifier
                 .align(edgeAlignment)
@@ -376,17 +387,19 @@ public fun BetterSheetHost(
                 .widthIn(max = maxWidth).fillMaxWidth()
                 .padding(horizontal = traySide)
                 .then(surfaceModifier)
-                .sheetSurfaceShadow(
+                .then(if (surface?.shadow == SheetSurfaceShadow.None) Modifier else Modifier.sheetSurfaceShadow(
                     if (opensFromTop) 0.dp else 16.dp,
                     surfaceShape,
                     floating = tray != null,
-                )
+                ))
                 .sheetDrawClip { surfaceShape }
-                .sheetNavigationCover(containerColor, navExtension)
+                .then(surface?.modifier(materialScope) ?: Modifier)
+                .then(if (surface == null) Modifier.sheetNavigationCover(containerColor, navExtension) else Modifier)
 
             Layout(modifier = sheetSurfaceModifier, content = {
                 Layout(modifier = Modifier.fillMaxWidth()
-                    .background(containerColor)
+                    .then(if (surface == null) Modifier.background(containerColor)
+                        else Modifier.sheetContentAboveNavigation(navExtension))
                     // The status bar is inside the same clipped sheet surface, not a separate cap.
                     .padding(
                         top = with(density) { if (opensFromTop) topInset.toDp() else 0.dp },

@@ -40,6 +40,13 @@ internal fun Modifier.sheetNavigationCover(color: Color, heightPx: Float): Modif
     if (height > 0f) drawRect(color, Offset(0f, size.height - height), Size(size.width, height))
 }
 
+/** Paint a custom tray once over its full height; keep child effects above its navigation area. */
+internal fun Modifier.sheetContentAboveNavigation(heightPx: Float): Modifier = drawWithContent {
+    clipRect(bottom = (size.height - heightPx.coerceIn(0f, size.height))) {
+        this@drawWithContent.drawContent()
+    }
+}
+
 /**
  * A tray's depth must not change when its height changes. Android elevation projects a spot
  * shadow from the window light source, which can look like a second offset tray while morphing.

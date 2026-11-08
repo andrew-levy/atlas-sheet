@@ -5,7 +5,7 @@
 Focused examples and behavior details for less common configurations. Code uses the
 API on this branch; app-specific content functions are placeholders.
 
-[Background interaction](#background-interaction) · [Inline sheets](#inline-sheets) · [Fragments](#fragments) · [Stacking](#stacking) · [Parameters](#parameters) · [Dismissal](#dismissal) · [Scroll handoff](#scroll-handoff) · [Edge to edge](#edge-to-edge) · [Floating tray](#floating-tray) · [Animation behavior and migration](#animation-behavior-and-migration)
+[Custom surfaces](SURFACES.md) · [Background interaction](#background-interaction) · [Inline sheets](#inline-sheets) · [Fragments](#fragments) · [Stacking](#stacking) · [Parameters](#parameters) · [Dismissal](#dismissal) · [Scroll handoff](#scroll-handoff) · [Edge to edge](#edge-to-edge) · [Floating tray](#floating-tray) · [Animation behavior and migration](#animation-behavior-and-migration)
 
 ## Background interaction
 
