@@ -123,7 +123,31 @@ private fun Gallery(autoOpen: Demo?) {
                 }
             }
             item {
-                Button(onClick = { context.startActivity(Intent(context, GlassActivity::class.java)) }) { Text("Liquid glass playground") }
+                Card(
+                    Modifier.fillMaxWidth().testTag("open-glass").clickable {
+                        context.startActivity(Intent(context, GlassActivity::class.java))
+                    },
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF101B3C))
+                ) {
+                    Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("EXPERIMENTAL  /  MATERIAL LAB",
+                                color = Color(0xFF9CC8FF),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.height(8.dp))
+                            Text("Liquid Glass",
+                                color = Color.White,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.height(6.dp))
+                            Text("Lens  ·  Dock  ·  Morph",
+                                color = Color(0xFFC6D8F8),
+                                style = MaterialTheme.typography.bodySmall)
+                        }
+                        Text("↗", color = Color.White, style = MaterialTheme.typography.headlineMedium)
+                    }
+                }
             }
             item {
                 Button(onClick = { context.startActivity(Intent(context, FragmentDemoActivity::class.java)) }) {

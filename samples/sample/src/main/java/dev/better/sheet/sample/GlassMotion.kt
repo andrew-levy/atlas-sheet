@@ -113,6 +113,13 @@ internal class GlassMotion(private val view: View) : Choreographer.FrameCallback
         left.snap(bounds.left); top.snap(bounds.top)
         right.snap(bounds.right); bottom.snap(bounds.bottom)
         radius.snap(corner)
+        // An explicit new demo/shape must not inherit an unfinished merge or
+        // press animation from the previous screen.
+        union.snap(0f)
+        fingerDown.snap(0f)
+        dragX.snap(0f)
+        dragY.snap(0f)
+        glow.snap(0f)
         publish()
         view.invalidate()
     }

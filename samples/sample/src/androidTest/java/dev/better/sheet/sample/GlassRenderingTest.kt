@@ -155,4 +155,29 @@ class GlassRenderingTest {
         }
     }
 
+    @Test fun demoGalleryExposesDedicatedLensDockAndMorphModes() {
+        ActivityScenario.launch(GlassActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                activity.showMode(0)
+                assertEquals(View.VISIBLE, activity.glass.visibility)
+                assertEquals(View.GONE, activity.tabBackdrop.visibility)
+                assertEquals(View.GONE, activity.morphGlass.visibility)
+
+                activity.showMode(1)
+                assertEquals(View.GONE, activity.glass.visibility)
+                assertEquals(View.VISIBLE, activity.tabBackdrop.visibility)
+                assertEquals(View.VISIBLE, activity.selection.visibility)
+
+                activity.showMode(2)
+                assertEquals(View.GONE, activity.selection.visibility)
+                assertEquals(View.VISIBLE, activity.morphGlass.visibility)
+                assertTrue("Morph mode must start from a real, bounded trigger",
+                    activity.morphGlass.currentShapeBounds.width() > 0f)
+                assertTrue("Morph mode must not start as a full-screen lens",
+                    activity.morphGlass.currentShapeBounds.width() < activity.morphGlass.width)
+            }
+        }
+    }
+
+
 }

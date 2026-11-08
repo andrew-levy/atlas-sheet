@@ -1,8 +1,22 @@
 # Liquid glass playground
 
-Open **Liquid glass playground** in the sample gallery. Drag the clear lens over the
-night-sky image, scroll the image under the stationary lens, and drag or tap the bottom
-tabs. The selection lens samples the icon row itself, so icons bend as its edge crosses them.
+Open **Liquid Glass — Lens · Dock · Morph** from the sample gallery.
+The dedicated fullscreen showcase has three selectable, hands-on examples:
+
+1. **01 Lens:** drag a rounded lens across high-contrast orbital lines,
+   lettering, and nebula colors. Press and flick to see edge stretch and spring-back.
+   Scroll the artwork to test on-demand backdrop updates.
+2. **02 Dock:** a floating three-icon tab bar and an independently draggable
+   glass selection capsule. Drag it over the actual icons or tap another tab.
+3. **03 Morph:** the **Open Menu** glass trigger becomes a floating four-action
+   menu with content appearing over the transformed material. **Merge Droplets**
+   first to grow an adjacent lobe, **Separate** to pull it back, or expand and
+   close the complete menu. Each mode has its own layout and explanatory hints.
+
+Unlike earlier versions this is not a tiny morph button buried in the lens
+screen. It is a demo gallery inspired by the interaction fidelity of
+[expo-glass-custom-menu](https://github.com/rit3zh/expo-glass-custom-menu/tree/fresh-main),
+not a copy of its menu framework.
 
 This is a focused XML/View prototype, isolated from the Better Sheet library. It targets
 the appearance of iOS Liquid Glass; it is not a verified pixel-for-pixel implementation
@@ -76,10 +90,10 @@ jelly deformation, size/radius interpolation and smooth SDF unions. It uses
 Choreographer only until all springs settle. API 24–32 render a simple
 hard-union translucent fallback instead of AGSL refraction/morph blending.
 
-The sample's **MERGE → EXPAND → RESET** control demonstrates a merging two-lobe
-surface, a larger morphing glass sheet, and separation back into a small pill.
-The draggable central lens and icon-refracting tab selector remain independent
-examples.
+The sample separates Lens, Dock, and Morph into individually accessible modes.
+The Morph mode has a real `OPEN MENU` trigger, clickable menu rows, independent
+`MERGE DROPLETS`/`SEPARATE` controls, and a spring return animation.
+It makes the difference between rigid scaling and liquid morphing visible.
 
 ## Renderer and performance notes
 
@@ -111,9 +125,13 @@ multiple lenses increase cost. `live` trades idle power for automatic source ref
 disable it when the backdrop is static. Listeners are removed on detach and the render
 node display list is released.
 
-The glass demo is a bounded, real-time on-device screen recording rather than
-hundreds of blocking instrumentation screenshots. It includes lens drag,
-background scrolling, refracting tab selection, and merge/morph/reset stages. It is **not a performance benchmark**.
+The sample is designed for **interactive hands-on testing**.
+Automated video generation is intentionally disabled on `poc/glass` during
+development; the previous clip is not representative of the new three-mode
+showcase. You can run the gallery on your own Android device or emulator.
+If recording is needed, `python3 scripts/record-demos.py glass` provides the
+bounded real-time recorder, not hundreds of blocking instrumentation screenshots.
+A demo video is **not a performance benchmark**.
 The Find My demos remain frame-stepped. For comparable
 performance numbers, use a physical device, release build, fixed resolution and refresh
 rate, and collect FrameMetrics/Perfetto during a real-time drag (without screenshots).
@@ -129,8 +147,8 @@ ScrollView, text, and Canvas-based icons are supported.
 `GlassRenderingTest` checks live scrolling, real pixel changes from refraction
 against high-contrast stripes (rather than an almost uniform nebula), resize/
 reattach, drag handling, liquid morphing/merging, and recursive-backdrop rejection. The API 24/35 CI matrix runs it.
-The `glass` recording uses `adb shell screenrecord` with scripted gestures to show
-the lens, scrolling and icon-refraction sequence. Recreate:
+For an optional manual recording, the `glass` script uses bounded Android
+`screenrecord`, rather than screenshot-heavy instrumentation:
 
 ```bash
 python3 scripts/record-demos.py glass
@@ -160,3 +178,21 @@ runtime. Apple's private iOS Liquid Glass renderer, compositor behavior and
 cross-process blur are unavailable on Android; exact pixel parity is neither
 verified nor claimed. Compare real-device footage and measured frame times
 before shipping.
+
+### Local hands-on verification
+
+From the repository root:
+
+```bash
+./gradlew :sample:installDebug
+adb shell am start -n dev.better.sheet.sample/.GlassActivity
+```
+
+Test on **API 33+** with hardware acceleration (API 24 still shows the
+fallback). On the Lens screen drag across the `REFRACTION` word and orbit
+lines; on Dock switch among all three destinations and move the capsule;
+on Morph merge and separate two lobes, then open and close the menu.
+Make sure the glass is not merely a translucent rounded rectangle: the
+**pixels behind its edge should move**. A previous API 35 emulator pixel
+test failed to confirm this, so this needs physical-device verification
+before production use. The Better Sheet core library has not changed.

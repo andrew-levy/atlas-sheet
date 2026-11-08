@@ -77,6 +77,9 @@ jobs:
             samples/findmy/build/reports/androidTests/
             device-diagnostics/
   demos:
+    # On the liquid-glass prototype, the developer will test the new Lens/Dock/Morph
+    # gallery directly. Don't boot a second emulator to publish misleading recordings.
+    if: github.ref_name != 'poc/glass'
     env:
       # On the top-sheet prototype branch, record only the preview under review.
       # All other branches continue to record the complete demo set.
