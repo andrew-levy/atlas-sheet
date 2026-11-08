@@ -42,9 +42,11 @@ exit "$GRADLE_STATUS"
     def test_ready_device_runs_both_suites(self):
         result, calls, diagnostics = self.run_script()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(len(calls), 2)
+        self.assertEqual(len(calls), 3)
         self.assertIn(":sample:connectedDebugAndroidTest", calls[0])
-        self.assertIn(":findmy:connectedDebugAndroidTest", calls[1])
+        self.assertIn("GlassRenderingTest", calls[0])
+        self.assertIn(":sample:connectedDebugAndroidTest", calls[1])
+        self.assertIn(":findmy:connectedDebugAndroidTest", calls[2])
         self.assertIn("logcat.txt", diagnostics)
 
     def test_failed_suite_stays_failed_and_collects_diagnostics(self):
