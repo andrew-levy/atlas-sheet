@@ -1,6 +1,9 @@
 package dev.better.sheet.sample
 
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.RectF
 import android.os.Build
 import android.os.SystemClock
 import android.view.MotionEvent
@@ -15,9 +18,9 @@ import org.junit.Test
 class GlassRenderingTest {
     private val device get() = InstrumentationRegistry.getInstrumentation()
     private fun screenshot(): Bitmap {
-        // The live glass lens invalidates on every pre-draw. Waiting for UI idle
-        // would hang; onActivity changes run on the main thread, then we give
-        // the next frame time to render before capturing.
+        // Glass animations only schedule frames until their springs settle.
+        // The capture is bounded by UiAutomation itself; never wait for a
+        // continuously active backdrop to become idle.
         SystemClock.sleep(180)
         return checkNotNull(device.uiAutomation.takeScreenshot())
     }
@@ -51,7 +54,28 @@ class GlassRenderingTest {
         ActivityScenario.launch(GlassActivity::class.java).use { scenario ->
             val location = IntArray(2)
             var w = 0; var h = 0
-            scenario.onActivity { it.glass.refractionAmount = 0f }
+            scenario.onActivity { activity ->
+                // Use a sharp, periodic signal. The nebula is intentionally
+                // smooth, so it is a poor signal for a pixel-level optics test.
+                val parent = activity.glass.parent as FrameLayout
+                val stripes = object : View(activity) {
+                    val ink = Paint(Paint.ANTI_ALIAS_FLAG)
+                    override fun onDraw(canvas: Canvas) {
+                        val step = (6f * resources.displayMetrics.density).toInt().coerceAtLeast(2)
+                        for (x in 0 until width step step) {
+                            ink.color = if (x / step % 2 == 0) 0xFFEEF5FF.toInt()
+                                else 0xFF122047.toInt()
+                            canvas.drawRect(x.toFloat(), 0f,
+                                (x + step).toFloat(), height.toFloat(), ink)
+                        }
+                    }
+                }
+                parent.addView(stripes, parent.indexOfChild(activity.glass),
+                    FrameLayout.LayoutParams(-1, -1))
+                activity.glass.backdrop = stripes
+                activity.glass.refractionAmount = 0f
+                activity.glass.blurRadius = 0f
+            }
             val flat = screenshot()
             scenario.onActivity {
                 it.glass.getLocationOnScreen(location)
@@ -59,8 +83,8 @@ class GlassRenderingTest {
                 it.glass.refractionAmount = 45f * it.resources.displayMetrics.density
             }
             val curved = screenshot()
-            assertTrue("Refraction must alter the captured pixels", different(flat, curved,
-                location[0], location[1], w, h) > 100)
+            assertTrue("Refraction must alter the high-contrast captured pixels",
+                different(flat, curved, location[0], location[1], w, h) > 100)
             scenario.onActivity {
                 val parent = it.glass.parent as FrameLayout
                 val params = it.glass.layoutParams
@@ -109,4 +133,26 @@ class GlassRenderingTest {
             screenshot().recycle()
         }
     }
+    @Test fun liquidMotionAndShapeMergingCanSettleWithoutBusyLoop() {
+        ActivityScenario.launch(GlassActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                val glass = activity.morphGlass
+                glass.setShape(RectF(20f, 80f, 220f, 170f), 45f)
+                glass.pressAt(120f, 115f)
+                glass.dragTo(150f, 117f)
+                glass.releaseTouch()
+                glass.mergeWith(RectF(195f, 85f, 345f, 175f), 44f, 36f)
+                glass.morphTo(RectF(30f, 60f, 350f, 240f), 52f)
+            }
+            SystemClock.sleep(420)
+            scenario.onActivity { activity ->
+                assertTrue("Morphing must expand the glass geometry",
+                    activity.morphGlass.currentShapeBounds.width() > 220f)
+                assertTrue("A second lobe must merge into the glass",
+                    activity.morphGlass.mergeProgress > .2f)
+                activity.morphGlass.separate()
+            }
+        }
+    }
+
 }

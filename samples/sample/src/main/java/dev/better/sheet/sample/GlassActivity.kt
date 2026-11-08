@@ -21,6 +21,9 @@ class GlassActivity : Activity() {
         private set
     lateinit var selection: GlassView
         private set
+    lateinit var morphGlass: GlassView
+        private set
+    private var morphStage = 0
     private lateinit var tabs: LinearLayout
     private var tabAnimation: ValueAnimator? = null
     private var selected = 0
@@ -68,6 +71,7 @@ class GlassActivity : Activity() {
             backdrop = scene
             // The night-sky backdrop is static except for scrolling, observed by GlassView.
             live = false
+            isClickable = true
             contentDescription = "Draggable glass lens"
             cornerRadius = px(42).toFloat()
             refractionHeight = px(32).toFloat()
@@ -113,7 +117,8 @@ class GlassActivity : Activity() {
             }, LinearLayout.LayoutParams(0, -1, 1f))
         }
         selection = GlassView(this).apply {
-            backdrop = tabBackdrop; live = false; cornerRadius = px(32).toFloat()
+            backdrop = tabBackdrop; live = false; isClickable = true
+            cornerRadius = px(32).toFloat()
             blurRadius = 0f; refractionHeight = px(15).toFloat(); refractionAmount = px(20).toFloat()
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }
@@ -143,7 +148,65 @@ class GlassActivity : Activity() {
             }
             true
         }
+        // Full-window glass renderer with a tiny local shape: demonstrates that
+        // liquid morphing and merging do not require menu-specific infrastructure.
+        morphGlass = GlassView(this).apply {
+            backdrop = scene
+            live = false
+            jellyEnabled = false
+            cornerRadius = px(26).toFloat()
+            blurRadius = 2f * dp
+            refractionHeight = 24f * dp
+            refractionAmount = 28f * dp
+            contentDescription = "Morphing and merging liquid glass"
+        }
+        root.addView(morphGlass, FrameLayout.LayoutParams(-1, -1))
+        root.post { morphGlass.setShape(startMorphBounds(), px(26).toFloat()) }
+
+        root.addView(TextView(this).apply {
+            text = "MERGE"
+            textSize = 13f
+            letterSpacing = .1f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            setBackgroundColor(0x88404C7A.toInt())
+            contentDescription = "Merge, morph and reset liquid glass"
+            isClickable = true
+            isFocusable = true
+            setOnClickListener {
+                when (morphStage) {
+                    0 -> {
+                        val first = startMorphBounds()
+                        morphGlass.mergeWith(RectF(
+                            first.right - px(20), first.top + px(8),
+                            first.right + px(94), first.bottom + px(8)
+                        ), px(26).toFloat(), px(38).toFloat())
+                        text = "EXPAND"
+                    }
+                    1 -> {
+                        morphGlass.morphTo(RectF(
+                            root.width * .20f, px(170).toFloat(),
+                            root.width * .80f, px(326).toFloat()
+                        ), px(38).toFloat())
+                        text = "RESET"
+                    }
+                    else -> {
+                        morphGlass.separate()
+                        morphGlass.morphTo(startMorphBounds(), px(26).toFloat())
+                        text = "MERGE"
+                    }
+                }
+                morphStage = (morphStage + 1) % 3
+            }
+        }, FrameLayout.LayoutParams(px(120), px(46), Gravity.TOP or Gravity.END).apply {
+            topMargin = px(97); rightMargin = px(24)
+        })
     }
+
+    private fun startMorphBounds() = RectF(
+        root.width * .24f, px(186).toFloat(),
+        root.width * .51f, px(242).toFloat()
+    )
 
     private fun currentTabPosition() =
         (selection.x - tabBackdrop.x - px(4)) / max(1, selection.width)
@@ -160,7 +223,7 @@ class GlassActivity : Activity() {
         }
     }
 
-    /** Used by the frame-stepped recording so emulator speed does not change the clip. */
+    /** Moves the refracting tab selector; touch and spring motion live in the surface. */
     fun setTabPosition(position: Float) {
         selection.x = tabBackdrop.x + px(4) + position.coerceIn(0f, 2f) * selection.width
         selection.y = tabBackdrop.y + px(6)

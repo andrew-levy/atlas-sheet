@@ -62,7 +62,7 @@ def record_glass():
     time.sleep(1.0)
     run('adb', 'shell', 'rm', '-f', remote)
     recorder = subprocess.Popen(
-        ['adb', 'shell', 'screenrecord', '--time-limit', '14',
+        ['adb', 'shell', 'screenrecord', '--time-limit', '19',
          '--bit-rate', '6000000', remote],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
@@ -80,9 +80,18 @@ def record_glass():
         first_x = (24 + (width / density - 48) / 6) * density
         last_x = width - first_x
         swipe(first_x, tab_y, last_x, tab_y, 1650)
-        time.sleep(0.7)
-        swipe(last_x, tab_y, first_x, tab_y, 1600)
-        output, errors = recorder.communicate(timeout=20)
+        time.sleep(0.4)
+        swipe(last_x, tab_y, first_x, tab_y, 1250)
+        # Exercise the three liquid stages in the same recording:
+        # smooth-union merge, expanded morph, and spring-separated reset.
+        morph_x = width - 82 * density
+        morph_y = 142 * density
+        for _ in range(3):
+            subprocess.run(['adb', 'shell', 'input', 'tap',
+                str(int(morph_x)), str(int(morph_y))],
+                check=True, timeout=6)
+            time.sleep(1.0)
+        output, errors = recorder.communicate(timeout=25)
         if recorder.returncode != 0:
             raise RuntimeError(f'Screen recorder exited {recorder.returncode}: {errors}')
     except Exception:
