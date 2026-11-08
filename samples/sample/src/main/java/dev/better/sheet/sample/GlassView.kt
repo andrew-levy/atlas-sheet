@@ -61,14 +61,25 @@ class GlassView @JvmOverloads constructor(context: Context, attrs: AttributeSet?
         super.onDetachedFromWindow()
     }
 
+    // Equivalent local-to-root mapping using APIs available on API 24 as well.
+    private fun matrixToRoot(view: View, matrix: Matrix) {
+        val parentView = view.parent as? View
+        if (parentView != null) {
+            matrixToRoot(parentView, matrix)
+            matrix.preTranslate(-parentView.scrollX.toFloat(), -parentView.scrollY.toFloat())
+        }
+        matrix.preTranslate(view.left.toFloat(), view.top.toFloat())
+        if (!view.matrix.isIdentity) matrix.preConcat(view.matrix)
+    }
+
     override fun onDraw(canvas: Canvas) {
         val source = backdrop ?: return
         if (capturing || width == 0 || height == 0 || !source.isAttachedToWindow) return
         // Global matrices account for nested scrolling, translation, rotation and scale.
         sourceMatrix.reset()
-        source.transformMatrixToGlobal(sourceMatrix)
+        matrixToRoot(source, sourceMatrix)
         localMatrix.reset()
-        transformMatrixToGlobal(localMatrix)
+        matrixToRoot(this, localMatrix)
         if (!localMatrix.invert(inverse)) return
         sourceMatrix.setConcat(inverse, sourceMatrix)
         sourceMatrix.preTranslate(-source.scrollX.toFloat(), -source.scrollY.toFloat())
