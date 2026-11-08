@@ -1,6 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application android:theme="@android:style/Theme.Material.Light.NoActionBar" android:label="Better Sheet" android:allowBackup="false" android:supportsRtl="true">
-        <activity android:name=".GlassActivity" android:exported="false" />
+        <!-- Exported only in the sample app so adb can record the interactive demo. -->
+        <activity android:name=".GlassActivity" android:exported="true" />
         <activity android:name=".FragmentDemoActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".MainActivity" android:exported="true" android:windowSoftInputMode="adjustResize">
             <intent-filter>
