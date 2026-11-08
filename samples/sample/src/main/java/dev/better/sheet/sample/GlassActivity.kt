@@ -66,6 +66,8 @@ class GlassActivity : Activity() {
         glass = GlassView(this).apply {
             id = R.id.glass
             backdrop = scene
+            // The night-sky backdrop is static except for scrolling, observed by GlassView.
+            live = false
             contentDescription = "Draggable glass lens"
             cornerRadius = px(42).toFloat()
             refractionHeight = px(32).toFloat()
@@ -97,7 +99,7 @@ class GlassActivity : Activity() {
             leftMargin = px(20); rightMargin = px(20); bottomMargin = px(30)
         })
         tabBackdrop.addView(GlassView(this).apply {
-            backdrop = scene; cornerRadius = px(38).toFloat()
+            backdrop = scene; live = false; cornerRadius = px(38).toFloat()
             blurRadius = px(8).toFloat(); refractionHeight = px(22).toFloat()
             refractionAmount = px(22).toFloat()
         }, FrameLayout.LayoutParams(-1, -1))
@@ -111,7 +113,7 @@ class GlassActivity : Activity() {
             }, LinearLayout.LayoutParams(0, -1, 1f))
         }
         selection = GlassView(this).apply {
-            backdrop = tabBackdrop; cornerRadius = px(32).toFloat()
+            backdrop = tabBackdrop; live = false; cornerRadius = px(32).toFloat()
             blurRadius = 0f; refractionHeight = px(15).toFloat(); refractionAmount = px(20).toFloat()
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }
