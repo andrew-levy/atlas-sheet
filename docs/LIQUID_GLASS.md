@@ -40,8 +40,12 @@ findViewById<GlassView>(R.id.lens).apply {
 
 All numeric properties use pixels. `refractionHeight` is the width of the curved edge;
 `refractionAmount` controls how far that edge pulls the sampled background inward.
-The center remains mostly clear. `live = true` refreshes while visible; for a static
-scene set `live = false` and call `invalidate()` when the source or lens changes.
+The center remains mostly clear. `live = true` refreshes animated sources at a
+bounded 20 fps, rather than invalidating in every pre-draw callback (which can
+starve the UI and instrumentation). For static or scrollable backdrops, set
+`live = false`; scrolling is observed automatically and lens movement already
+invalidates the overlay. Explicitly call `invalidate()` when changing unrelated
+static background content. The sample uses `live = false` on all three lenses.
 Dragging, tab selection, and labels are demo responsibilities, not renderer APIs.
 
 ## Renderer and performance notes
@@ -71,7 +75,9 @@ multiple lenses increase cost. `live` trades idle power for automatic source ref
 disable it when the backdrop is static. Listeners are removed on detach and the render
 node display list is released.
 
-Recordings are frame-stepped visual demos, **not performance benchmarks**. For comparable
+The glass demo is a bounded, real-time on-device screen recording rather than
+hundreds of blocking instrumentation screenshots. It is **not a performance benchmark**.
+The Find My demos remain frame-stepped. For comparable
 performance numbers, use a physical device, release build, fixed resolution and refresh
 rate, and collect FrameMetrics/Perfetto during a real-time drag (without screenshots).
 Report median/p95 frame duration, missed-frame count, device/API and thermal state.
@@ -85,13 +91,16 @@ ScrollView, text, and Canvas-based icons are supported.
 
 `GlassRenderingTest` checks live scrolling, real pixel changes from refraction, resize/
 reattach, drag handling and recursive-backdrop rejection. The API 24/35 CI matrix runs it.
-`GlassRecordingTest` records the lens, scrolling and icon-refraction sequence. Recreate:
+The `glass` recording uses `adb shell screenrecord` with scripted gestures to show
+the lens, scrolling and icon-refraction sequence. Recreate:
 
 ```bash
 python3 scripts/record-demos.py glass
 ```
 
-The MP4 is native resolution, H.264, CRF 18, with fast-start metadata for phone playback.
+The MP4 is captured at device resolution using Android's built-in H.264 screen
+recorder; the GIF and detail PNG are derived from the recording. The demo capture
+has a short bounded timeout and does not depend on UIAutomator screenshots.
 
 ## Credits
 
