@@ -15,7 +15,9 @@ import org.junit.Test
 class GlassRenderingTest {
     private val device get() = InstrumentationRegistry.getInstrumentation()
     private fun screenshot(): Bitmap {
-        device.waitForIdleSync()
+        // The live glass lens invalidates on every pre-draw. Waiting for UI idle
+        // would hang; onActivity changes run on the main thread, then we give
+        // the next frame time to render before capturing.
         SystemClock.sleep(180)
         return checkNotNull(device.uiAutomation.takeScreenshot())
     }
