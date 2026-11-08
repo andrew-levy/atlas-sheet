@@ -1,61 +1,105 @@
+/*
+ * Copyright 2025 Kyant
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy at http://www.apache.org/licenses/LICENSE-2.0
+ * Unless required by applicable law or agreed to in writing, software distributed under
+ * the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
+ * ANY KIND, either express or implied. See the License for the specific language
+ * governing permissions and limitations under the License.
+ *
+ * Modified for Better Sheet: single-radius View renderer, GPU blur, compact dispersion,
+ * directional rim, padded input and alpha coverage. Refraction math adapted from
+ * Kyant0/AndroidLiquidGlass backdrop/internal/Shaders.kt (Apache-2.0).
+ */
 package dev.better.sheet.sample
 
-import android.graphics.Bitmap
-import android.graphics.BitmapShader
-import android.graphics.RuntimeShader
-import android.graphics.Shader
+import android.graphics.*
+import android.view.View
 import androidx.annotation.RequiresApi
+import kotlin.math.ceil
 
-/** Clear glass over a screen-resolution sibling capture. All shader lengths are physical pixels. */
+/** Records only the padded lens region into a hardware display list; no CPU bitmap upload. */
 @RequiresApi(33)
 internal class LensShader {
+    private val node = RenderNode("Glass backdrop")
     private val shader = RuntimeShader("""
-        uniform shader scene;
+        uniform shader content;
         uniform float2 size;
+        uniform float padding;
         uniform float radius;
+        uniform float height;
+        uniform float amount;
         uniform float density;
-        uniform float tilt;
 
-        half4 main(float2 p) {
-            float2 center = p - size * 0.5;
-            float2 q = abs(center) - size * 0.5 + radius;
+        float sdf(float2 p, float r) {
+            float2 q = abs(p) - size * 0.5 + r;
+            return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+        }
+        float2 gradient(float2 p, float r) {
+            float2 q = abs(p) - size * 0.5 + r;
             float2 arc = max(q, 0.0);
-            float depth = radius - length(arc) - min(max(q.x, q.y), 0.0);
-            float2 axis = q.x > q.y ? float2(1, 0) : float2(0, 1);
-            float2 normal = sign(center) * (length(arc) > 0.001 ? arc / max(length(arc), 0.001) : axis);
-
-            // Circular bevel cross-section, then Snell refraction from air into glass.
-            float bevel = min(15.0 * density, radius);
-            float sinI = clamp(1.0 - depth / bevel, 0.0, 1.0);
-            float cosI = sqrt(max(0.0, 1.0 - sinI * sinI));
-            float sinT = sinI / 1.5;
-            float cosT = sqrt(1.0 - sinT * sinT);
-            float slope = (sinI * cosT - cosI * sinT) / max(0.01, cosI * cosT + sinI * sinT);
-            float2 uv = p - normal * slope * bevel * (0.65 + cosI);
-            float2 blur = float2(1.5, 1.5) * density;
-            half3 color = scene.eval(uv).rgb * 0.40;
-            color += 0.15 * (scene.eval(uv + blur).rgb + scene.eval(uv - blur).rgb
-                          + scene.eval(uv + float2(blur.x, -blur.y)).rgb
-                          + scene.eval(uv + float2(-blur.x, blur.y)).rgb);
-            float light = dot(normal, normalize(float2(-0.55 + tilt * 0.45, -0.85)));
-            float rim = exp(-max(depth, 0.0) / (1.25 * density));
-            float shine = rim * (0.12 + 0.78 * pow(abs(light), 3.0));
-            color = mix(color, half3(1.0), 0.065 + shine);
-            return half4(color, 1);
+            float len = length(arc);
+            return sign(p) * (len > 0.001 ? arc / len :
+                (q.x > q.y ? float2(1, 0) : float2(0, 1)));
+        }
+        half4 main(float2 coord) {
+            float2 p = coord - padding - size * 0.5;
+            float sd = sdf(p, radius);
+            float coverage = 1.0 - smoothstep(-0.75, 0.75, sd);
+            if (coverage <= 0.0) return half4(0.0);
+            float depth = max(-sd, 0.0);
+            float t = clamp(1.0 - depth / max(height, 0.001), 0.0, 1.0);
+            float bend = (1.0 - sqrt(max(0.0, 1.0 - t * t))) * amount;
+            float2 normal = gradient(p, min(radius * 1.5, min(size.x, size.y) * 0.5));
+            float2 uv = coord - normal * bend;
+            // A restrained RGB split only in the bevel, leaving the center crisp.
+            float2 dispersion = normal * bend * 0.035;
+            half4 center = content.eval(uv);
+            half4 red = content.eval(uv + dispersion);
+            half4 blue = content.eval(uv - dispersion);
+            half alpha = max(center.a, max(red.a, blue.a));
+            half3 color = half3(red.r, center.g, blue.b);
+            float rim = exp(-depth / max(0.8 * density, 0.001));
+            float light = pow(abs(dot(normal, normalize(float2(-0.6, -0.8)))), 3.0);
+            color = mix(color, half3(alpha), half(0.035 + rim * (0.12 + 0.62 * light)));
+            return half4(min(color, half3(alpha)), alpha) * half(coverage);
         }
     """.trimIndent())
+    private var previousParameters = floatArrayOf()
+    private var effect: RenderEffect? = null
 
-    fun setBackdrop(bitmap: Bitmap) {
-        val input = BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
-        input.setFilterMode(BitmapShader.FILTER_MODE_LINEAR)
-        shader.setInputShader("scene", input)
-    }
-
-    fun frame(w: Float, h: Float, corner: Float, density: Float, tilt: Float): Shader {
-        shader.setFloatUniform("size", w, h)
-        shader.setFloatUniform("radius", corner)
+    fun draw(canvas: Canvas, source: View, matrix: Matrix, w: Int, h: Int,
+             radius: Float, blur: Float, height: Float, amount: Float, density: Float) {
+        val pad = ceil(blur * 3f + 2f).toInt()
+        node.setPosition(0, 0, w + pad * 2, h + pad * 2)
+        shader.setFloatUniform("size", w.toFloat(), h.toFloat())
+        shader.setFloatUniform("padding", pad.toFloat())
+        shader.setFloatUniform("radius", radius)
+        shader.setFloatUniform("height", height)
+        shader.setFloatUniform("amount", amount)
         shader.setFloatUniform("density", density)
-        shader.setFloatUniform("tilt", tilt)
-        return shader
+        val parameters = floatArrayOf(w.toFloat(), h.toFloat(), radius, blur, height, amount, density)
+        if (!previousParameters.contentEquals(parameters)) {
+            val lens = RenderEffect.createRuntimeShaderEffect(shader, "content")
+            effect = if (blur > 0f) RenderEffect.createChainEffect(lens,
+                RenderEffect.createBlurEffect(blur, blur, Shader.TileMode.CLAMP)) else lens
+            previousParameters = parameters
+        }
+        node.setRenderEffect(effect)
+        val recording = node.beginRecording()
+        try {
+            recording.translate(pad.toFloat(), pad.toFloat())
+            recording.concat(matrix)
+            source.draw(recording)
+        } finally {
+            node.endRecording()
+        }
+        val save = canvas.save()
+        canvas.translate(-pad.toFloat(), -pad.toFloat())
+        canvas.drawRenderNode(node)
+        canvas.restoreToCount(save)
     }
+
+    fun release() { node.discardDisplayList() }
 }

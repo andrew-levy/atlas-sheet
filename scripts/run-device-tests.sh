@@ -42,6 +42,6 @@ adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS
 # small and release it between suites, leaving memory for Android and its GPU.
 gradle_args=(--no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx1g)
 ./gradlew "${gradle_args[@]}" :sample:connectedDebugAndroidTest \
-    -Pandroid.testInstrumentationRunnerArguments.class=dev.better.sheet.sample.SheetUiTest,dev.better.sheet.sample.SheetMotionTest,dev.better.sheet.sample.FragmentSheetTest,dev.better.sheet.sample.HeavyContentMotionTest,dev.better.sheet.sample.TrayRenderingTest,dev.better.sheet.sample.AnimationCustomizationTest,dev.better.sheet.sample.EntranceRenderingTest
+    -Pandroid.testInstrumentationRunnerArguments.class=dev.better.sheet.sample.SheetUiTest,dev.better.sheet.sample.SheetMotionTest,dev.better.sheet.sample.FragmentSheetTest,dev.better.sheet.sample.HeavyContentMotionTest,dev.better.sheet.sample.TrayRenderingTest,dev.better.sheet.sample.AnimationCustomizationTest,dev.better.sheet.sample.EntranceRenderingTest,dev.better.sheet.sample.GlassRenderingTest
 ./gradlew "${gradle_args[@]}" :findmy:connectedDebugAndroidTest \
     -Pandroid.testInstrumentationRunnerArguments.class=dev.better.sheet.findmy.FindMyNavigationTest

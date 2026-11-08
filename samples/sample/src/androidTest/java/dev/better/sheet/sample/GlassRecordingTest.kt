@@ -2,8 +2,6 @@ package dev.better.sheet.sample
 
 import android.graphics.Bitmap
 import android.os.SystemClock
-import android.view.MotionEvent
-import android.widget.ScrollView
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Test
@@ -18,42 +16,41 @@ class GlassRecordingTest {
         check(frames.mkdirs())
         ActivityScenario.launch(GlassActivity::class.java).use { scenario ->
             device.waitForIdleSync()
-            val start = SystemClock.uptimeMillis()
-            var initialX = 0f
-            var initialY = 0f
-            for (frame in 0 until 146) {
+            var baseX = 0f
+            var baseY = 0f
+            for (frame in 0 until 330) {
                 scenario.onActivity { activity ->
-                    val glass = activity.findViewById<GlassView>(R.id.glass)
-                    val scene = activity.findViewById<ScrollView>(R.id.backdrop)
+                    val glass = activity.glass
+                    val scene = activity.scene
                     if (frame == 0) {
-                        check(glass.width > 0)
-                        initialX = glass.x + glass.width / 2
-                        initialY = glass.y + glass.height / 2
+                        check(glass.width > 0 && activity.selection.width > 1)
+                        baseX = glass.x; baseY = glass.y
                     }
-                    if (frame in 18..64) {
-                        val angle = (frame - 18) * Math.PI / 46
-                        val px = initialX + sin(angle).toFloat() * (scene.width - glass.width) * .44f
-                        val py = initialY - sin(angle).toFloat() * glass.height * .95f
-                        val action = when (frame) {
-                            18 -> MotionEvent.ACTION_DOWN
-                            64 -> MotionEvent.ACTION_UP
-                            else -> MotionEvent.ACTION_MOVE
-                        }
-                        val event = MotionEvent.obtain(start, SystemClock.uptimeMillis(), action, px, py, 0)
-                        glass.dispatchTouchEvent(event)
-                        event.recycle()
+                    // Move a clear lens across bright/dark nebula and fine star detail.
+                    if (frame in 20..140) {
+                        val t = (frame - 20) / 120f
+                        glass.x = baseX + sin(t * 2 * PI).toFloat() * baseX * .85f
+                        glass.y = baseY - sin(t * PI).toFloat() * scene.height * .25f
                     }
-                    if (frame in 70..132) {
-                        val progress = (1 - cos((frame - 70) * Math.PI / 62)) / 2
-                        scene.scrollTo(0, (progress * scene.height * .96).toInt())
+                    // Hold the lens stationary while the real ScrollView moves beneath it.
+                    if (frame in 150..220) {
+                        val t = (frame - 150) / 70f
+                        scene.scrollTo(0, ((1 - cos(t * PI)) * .5 * scene.height * .45).toInt())
                     }
-                    if (frame == 133) check(scene.scrollY > glass.height)
+                    // Scrub the selection across the actual icon backdrop, then return.
+                    if (frame in 230..310) {
+                        val t = (frame - 230) / 80f
+                        activity.setTabPosition((1 - cos(t * 2 * PI)).toFloat())
+                        activity.selection.scaleX = 1f + .15f * sin(t * PI).toFloat()
+                        activity.selection.scaleY = 1f + .12f * sin(t * PI).toFloat()
+                    }
+                    if (frame == 320) check(scene.scrollY > 0)
                 }
                 device.waitForIdleSync()
-                SystemClock.sleep(48)
+                SystemClock.sleep(32)
                 val screenshot = checkNotNull(device.uiAutomation.takeScreenshot())
                 File(frames, "%05d.jpg".format(frame)).outputStream().use {
-                    check(screenshot.compress(Bitmap.CompressFormat.JPEG, 92, it))
+                    check(screenshot.compress(Bitmap.CompressFormat.JPEG, 100, it))
                 }
                 screenshot.recycle()
             }
