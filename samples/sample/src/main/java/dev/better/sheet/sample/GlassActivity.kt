@@ -48,7 +48,7 @@ class GlassActivity : Activity() {
             setImageResource(R.drawable.glass_night_sky)
             scaleType = ImageView.ScaleType.CENTER_CROP
             contentDescription = "Blue, violet and coral nebula with stars"
-        }, ScrollView.LayoutParams(-1, (resources.displayMetrics.heightPixels * 1.65f).toInt()))
+        }, FrameLayout.LayoutParams(-1, (resources.displayMetrics.heightPixels * 1.65f).toInt()))
         root.addView(scene, FrameLayout.LayoutParams(-1, -1))
         root.addView(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
