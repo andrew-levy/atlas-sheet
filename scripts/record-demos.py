@@ -10,6 +10,8 @@ from pathlib import Path
 import subprocess
 import shutil
 import tempfile
+import re
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 SCENARIOS = ['snapPoints', 'tabs', 'chat', 'contentFit', 'stacked', 'scrollHandoff', 'tray', 'topSheet']
@@ -36,6 +38,69 @@ def encode_preview(source, gif, framerate=None):
         '[s0]palettegen=stats_mode=diff[p];'
         '[s1][p]paletteuse=dither=sierra2_4a:diff_mode=rectangle',
         '-loop', '0', str(gif))
+
+def record_glass():
+    """Record the actual app directly. Never take 330 blocking screenshots from an
+    instrumentation test: each UiAutomation screenshot can stall under emulated GPU.
+    The entire device recording has a hard bound, with a useful timeout error.
+    """
+    out = ROOT / 'docs' / 'videos'
+    out.mkdir(parents=True, exist_ok=True)
+    remote = '/sdcard/glass-demo.mp4'
+    size = subprocess.check_output(['adb', 'shell', 'wm', 'size'], text=True)
+    density_output = subprocess.check_output(['adb', 'shell', 'wm', 'density'], text=True)
+    match = re.search(r'(\d+)x(\d+)', size)
+    dmatch = re.search(r'(\d+)', density_output)
+    if not match or not dmatch:
+        raise RuntimeError(f'Unable to determine device dimensions: {size} / {density_output}')
+    width, height = map(int, match.groups())
+    density = int(dmatch.group(1)) / 160.0
+
+    run('adb', 'shell', 'am', 'force-stop', 'dev.better.sheet.sample')
+    run('adb', 'shell', 'am', 'start', '-n',
+        'dev.better.sheet.sample/.GlassActivity')
+    time.sleep(1.0)
+    run('adb', 'shell', 'rm', '-f', remote)
+    recorder = subprocess.Popen(
+        ['adb', 'shell', 'screenrecord', '--time-limit', '14',
+         '--bit-rate', '6000000', remote],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        def swipe(x1, y1, x2, y2, duration):
+            subprocess.run(
+                ['adb', 'shell', 'input', 'swipe', str(int(x1)), str(int(y1)),
+                 str(int(x2)), str(int(y2)), str(duration)],
+                check=True, timeout=7)
+        time.sleep(0.6)
+        swipe(width * .5, height * .5, width * .76, height * .40, 1300)
+        swipe(width * .76, height * .40, width * .36, height * .48, 1400)
+        swipe(width * .18, height * .68, width * .18, height * .30, 1250)
+        # Bottom selection: first slot to third slot; sample actual icon content.
+        tab_y = height - 89 * density
+        first_x = (24 + (width / density - 48) / 6) * density
+        last_x = width - first_x
+        swipe(first_x, tab_y, last_x, tab_y, 1650)
+        time.sleep(0.7)
+        swipe(last_x, tab_y, first_x, tab_y, 1600)
+        output, errors = recorder.communicate(timeout=20)
+        if recorder.returncode != 0:
+            raise RuntimeError(f'Screen recorder exited {recorder.returncode}: {errors}')
+    except Exception:
+        if recorder.poll() is None:
+            recorder.kill()
+            recorder.communicate(timeout=5)
+        raise
+
+    movie = out / 'glass.mp4'
+    run('adb', 'pull', remote, str(movie), stdout=subprocess.DEVNULL)
+    run('adb', 'shell', 'rm', '-f', remote)
+    if not movie.is_file() or movie.stat().st_size < 1024:
+        raise RuntimeError('Screen recorder did not produce a playable MP4')
+    encode_preview(movie, out / 'glass.gif')
+    run('ffmpeg', '-v', 'error', '-y', '-ss', '3', '-i', str(movie),
+        '-frames:v', '1', '-vf', 'crop=iw:ih/3:0:ih/3',
+        str(out / 'glass-detail.png'))
+    print('Recorded glass with a bounded real-time device screen recording', flush=True)
 
 def record(scenario, work):
     package = 'dev.better.sheet.sample' if scenario in ('topSheet', 'glass') else PACKAGE
@@ -89,7 +154,10 @@ if __name__ == '__main__':
     with tempfile.TemporaryDirectory() as work:
         for scenario in scenarios:
             try:
-                record(scenario, Path(work))
+                if scenario == 'glass':
+                    record_glass()
+                else:
+                    record(scenario, Path(work))
             except Exception as error:
                 print(f'FAILED {scenario}: {error}', flush=True)
                 failures.append(scenario)
