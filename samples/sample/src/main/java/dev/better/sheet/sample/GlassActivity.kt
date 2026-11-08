@@ -119,7 +119,7 @@ class GlassActivity : Activity() {
             id = R.id.backdrop
             isVerticalScrollBarEnabled = false
             overScrollMode = View.OVER_SCROLL_NEVER
-            fillViewport = true
+            isFillViewport = true
         }
         val canvasHeight = (resources.displayMetrics.heightPixels * 1.55f).toInt()
         val field = FrameLayout(this).apply {
