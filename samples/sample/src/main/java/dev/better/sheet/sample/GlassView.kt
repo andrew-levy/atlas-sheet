@@ -21,7 +21,9 @@ class GlassView @JvmOverloads constructor(context: Context, attrs: AttributeSet?
                 require(ancestor !== value) { "The backdrop must not contain the glass view" }
                 ancestor = ancestor.parent
             }
+            stopObservingBackdrop()
             field = value
+            observeBackdrop()
             invalidate()
         }
     var cornerRadius = 36f * resources.displayMetrics.density
@@ -32,9 +34,18 @@ class GlassView @JvmOverloads constructor(context: Context, attrs: AttributeSet?
         set(value) { require(value.isFinite() && value >= 0); field = value; invalidate() }
     var refractionAmount = 28f * resources.displayMetrics.density
         set(value) { require(value.isFinite() && value >= 0); field = value; invalidate() }
-    /** Refresh while the window is rendering. Disable for static scenes and invalidate explicitly. */
+    /** Poll changing/animated sources at up to 20 fps. Scroll and lens movement
+     * invalidate on demand, so use live=false for static/scrollable content.
+     * Never invalidate from OnPreDraw: that makes the UI permanently non-idle.
+     */
     var live = true
-        set(value) { field = value; invalidate() }
+        set(value) {
+            if (field == value) return
+            field = value
+            removeCallbacks(refresh)
+            if (value && isAttachedToWindow) postDelayed(refresh, 50L)
+            invalidate()
+        }
     private val sourceMatrix = Matrix()
     private val inverse = Matrix()
     private val localMatrix = Matrix()
@@ -43,20 +54,42 @@ class GlassView @JvmOverloads constructor(context: Context, attrs: AttributeSet?
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val renderer = if (Build.VERSION.SDK_INT >= 33) LensShader() else null
     private var capturing = false
-    private var observer: ViewTreeObserver? = null
-    private val refresh = ViewTreeObserver.OnPreDrawListener {
-        if (live && isShown && windowVisibility == VISIBLE) invalidate()
-        true
+    private var observedSource: ViewTreeObserver? = null
+    private val onSourceScroll = ViewTreeObserver.OnScrollChangedListener {
+        // On demand: scrolling updates the sampled region without a render loop.
+        postInvalidateOnAnimation()
+    }
+    private val refresh = object : Runnable {
+        override fun run() {
+            if (!isAttachedToWindow || !live) return
+            if (isShown && windowVisibility == VISIBLE) invalidate()
+            // Leave idle gaps for instrumentation and keep capture cost bounded.
+            postDelayed(this, 50L)
+        }
+    }
+
+    private fun observeBackdrop() {
+        if (!isAttachedToWindow) return
+        backdrop?.viewTreeObserver?.takeIf { it.isAlive }?.let {
+            it.addOnScrollChangedListener(onSourceScroll)
+            observedSource = it
+        }
+    }
+
+    private fun stopObservingBackdrop() {
+        observedSource?.takeIf { it.isAlive }?.removeOnScrollChangedListener(onSourceScroll)
+        observedSource = null
     }
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        observer = viewTreeObserver.also { it.addOnPreDrawListener(refresh) }
+        observeBackdrop()
+        if (live) postDelayed(refresh, 50L)
     }
 
     override fun onDetachedFromWindow() {
-        observer?.takeIf { it.isAlive }?.removeOnPreDrawListener(refresh)
-        observer = null
+        removeCallbacks(refresh)
+        stopObservingBackdrop()
         if (Build.VERSION.SDK_INT >= 33) renderer?.release()
         super.onDetachedFromWindow()
     }
