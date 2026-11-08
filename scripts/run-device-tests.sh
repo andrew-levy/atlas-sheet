@@ -41,7 +41,16 @@ adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS
 # APKs were compiled before starting the emulator. Keep the test driver's heap
 # small and release it between suites, leaving memory for Android and its GPU.
 gradle_args=(--no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx1g)
-./gradlew "${gradle_args[@]}" :sample:connectedDebugAndroidTest \
-    -Pandroid.testInstrumentationRunnerArguments.class=dev.better.sheet.sample.SheetUiTest,dev.better.sheet.sample.SheetMotionTest,dev.better.sheet.sample.FragmentSheetTest,dev.better.sheet.sample.HeavyContentMotionTest,dev.better.sheet.sample.TrayRenderingTest,dev.better.sheet.sample.AnimationCustomizationTest,dev.better.sheet.sample.EntranceRenderingTest,dev.better.sheet.sample.GlassRenderingTest
+# Run the new glass suite first. If the renderer deadlocks Android's test
+# lifecycle, fail promptly with the captured logcat instead of consuming the
+# entire 45-minute emulator job. Do not suppress failures.
+timeout --signal=TERM --kill-after=5s 120s \
+    ./gradlew "${gradle_args[@]}" :sample:connectedDebugAndroidTest \
+    -Pandroid.testInstrumentationRunnerArguments.class=dev.better.sheet.sample.GlassRenderingTest
+
+# Keep the existing non-glass suites independent from the GPU prototype.
+timeout --signal=TERM --kill-after=5s 420s \
+    ./gradlew "${gradle_args[@]}" :sample:connectedDebugAndroidTest \
+    -Pandroid.testInstrumentationRunnerArguments.class=dev.better.sheet.sample.SheetUiTest,dev.better.sheet.sample.SheetMotionTest,dev.better.sheet.sample.FragmentSheetTest,dev.better.sheet.sample.HeavyContentMotionTest,dev.better.sheet.sample.TrayRenderingTest,dev.better.sheet.sample.AnimationCustomizationTest,dev.better.sheet.sample.EntranceRenderingTest
 ./gradlew "${gradle_args[@]}" :findmy:connectedDebugAndroidTest \
     -Pandroid.testInstrumentationRunnerArguments.class=dev.better.sheet.findmy.FindMyNavigationTest
