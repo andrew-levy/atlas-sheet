@@ -1,5 +1,13 @@
 # Sheet material and transform
 
+Try the existing **Better Sheet** sample: **Material & transforms** → **Solid default / Material only / Transform only / Material + transform**. The page also switches between **Standard** and **Floating tray**. In stack examples, tap **Cover this sheet**, then close the top sheet to watch the base restore. Drag, snap, scroll and enter a note in each mode.
+
+The compilable examples are in `samples/sample/src/main/java/dev/better/sheet/sample/MaterialExamples.kt`. Direct launch after installing the sample:
+
+```sh
+adb shell am start -n dev.better.sheet.sample/.MainActivity --es demo Materials
+```
+
 Better Sheet owns sheet behavior and geometry. Apps supply header/body/footer content and can choose a decorative material behind it:
 
 ```kotlin

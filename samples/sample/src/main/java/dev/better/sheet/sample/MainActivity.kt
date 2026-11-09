@@ -73,6 +73,7 @@ object OpenTimings {
 
 enum class Demo(val label: String, val subtitle: String) {
     SnapPoints("Snap Points", "Peek, medium, expanded • scroll handoff"),
+    Materials("Material & transforms", "Solid default • custom paint • stack effects • both"),
     TopSheet("Top sheet", "Status bar • drag down to expand, up to dismiss"),
     Animations("Animations", "Spring • fade • slide + fade"),
     Tray("Floating tray", "Inset corners • continuous edge-to-edge morph"),
@@ -140,6 +141,10 @@ private fun Gallery(autoOpen: Demo?) {
 
 @Composable
 private fun DemoSheet(demo: Demo, openedAt: Long, close: () -> Unit) {
+    if (demo == Demo.Materials) {
+        MaterialExamples(close)
+        return
+    }
     if (demo == Demo.Animations) {
         AnimationGallery(close)
         return
