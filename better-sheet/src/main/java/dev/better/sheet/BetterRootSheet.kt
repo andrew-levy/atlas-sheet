@@ -47,7 +47,7 @@ public fun BetterSheet(
     enterTransition: EnterTransition = slideInVertically(defaultSheetSpring(IntOffset(1, 1))) { it },
     exitTransition: ExitTransition = slideOutVertically(defaultSheetSpring(IntOffset(1, 1))) { it },
     snapAnimationSpec: AnimationSpec<Float> = defaultSheetSpring(),
-    surface: SheetSurface? = null,
+    surface: (@Composable (shape: Shape, isNavigationBar: Boolean) -> Modifier)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     SideEffect { state.preparePresentation() }

@@ -12,6 +12,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
@@ -33,29 +35,28 @@ class SheetSurfaceRenderingTest {
     private var body = Rect.Zero
     private var header = Rect.Zero
     private var footer = Rect.Zero
-    private var regions = mutableSetOf<SheetSurfaceRegion>()
+    private var navigationPaints = mutableSetOf<Boolean>()
 
     private fun mount(
         activity: ActivityScenario<MainActivity>, name: String,
         edge: SheetEdge = SheetEdge.Bottom,
         presentation: SheetPresentation = SheetPresentation.Standard,
         modal: Boolean = false, root: Boolean = false,
-        custom: Boolean = true, shadow: SheetSurfaceShadow = SheetSurfaceShadow.Default,
+        custom: Boolean = true, stacked: Boolean = false,
     ) {
-        instrumentation.runOnMainSync { bounds = Rect.Zero; body = Rect.Zero; header = Rect.Zero; footer = Rect.Zero; regions.clear() }
+        instrumentation.runOnMainSync { bounds = Rect.Zero; body = Rect.Zero; header = Rect.Zero; footer = Rect.Zero; navigationPaints.clear() }
         activity.onActivity { it.setContent { key(name) {
             state = rememberSheetState("medium")
             scope = rememberCoroutineScope()
-            val material = remember {
-                SheetSurface(shadow) {
-                    val expectedEdge = edge
-                    check(this.edge == expectedEdge)
-                    SideEffect { regions.add(region) }
-                    Modifier.background(Color.Red)
-                }
+            val material: @Composable (Shape, Boolean) -> Modifier = { shape, isNavigationBar ->
+                check((shape == RectangleShape) == isNavigationBar)
+                SideEffect { navigationPaints.add(isNavigationBar) }
+                Modifier.background(Color.Red)
             }
+            val stack = rememberSheetStackState()
             Box(Modifier.fillMaxSize().background(Color.Green)) {
                 val onSurface = Modifier.onGloballyPositioned { bounds = it.boundsInWindow() }
+                    .then(if (stacked) Modifier.sheetStackEffect { scaleX = .8f } else Modifier)
                 val h: @Composable () -> Unit = {
                     Box(Modifier.fillMaxWidth().height(48.dp).background(Color.Blue).onGloballyPositioned { header = it.boundsInWindow() })
                 }
@@ -72,7 +73,7 @@ class SheetSurfaceRenderingTest {
                     Box(Modifier.fillMaxSize().onGloballyPositioned { body = it.boundsInWindow() })
                 }
                 val points = listOf(SheetSnapPoint.fraction("medium", .5f), SheetSnapPoint.expanded())
-                if (modal) BetterModalSheet(state, points,
+                if (modal) BetterModalSheet(state, points, stackState = stack,
                     containerColor = Color.Cyan, behavior = SheetBehavior(scrimEnabled = false), bodyMode = SheetBodyMode.Fill, edge = edge,
                     presentation = presentation, header = h, footer = f, surfaceModifier = onSurface,
                     surface = if (custom) material else null, content = content)
@@ -138,11 +139,11 @@ class SheetSurfaceRenderingTest {
         ActivityScenario.launch(MainActivity::class.java).use { activity ->
             for (custom in listOf(false, true)) {
                 mount(activity, "host-bottom-$custom", custom = custom)
-                if (custom) instrumentation.runOnMainSync { assertTrue(regions.contains(SheetSurfaceRegion.NavigationBar)) }
+                if (custom) instrumentation.runOnMainSync { assertEquals(setOf(false, true), navigationPaints) }
                 instrumentation.runOnMainSync { scope.launch { state.expand() } }
                 await("expanded"); assertPaint("host-bottom-expanded-$custom", custom, SheetEdge.Bottom)
                 mount(activity, "host-top-$custom", edge = SheetEdge.Top, custom = custom)
-                if (custom) instrumentation.runOnMainSync { assertEquals(setOf(SheetSurfaceRegion.Body), regions) }
+                if (custom) instrumentation.runOnMainSync { assertEquals(setOf(false), navigationPaints) }
             }
             mount(activity, "root-custom", root = true)
         }
@@ -153,27 +154,28 @@ class SheetSurfaceRenderingTest {
             val tray = SheetPresentation.Tray(matchDeviceCorners = false)
             // At a floating detent the navigation bar belongs to the green app, not the sheet.
             // Use dedicated probes rather than assertPaint's standard-sheet navigation assertion.
-            fun floating(shadow: SheetSurfaceShadow): Int {
+            fun floating(custom: Boolean): Int {
                 // Mount at expanded first so the shared assertions apply, then compare floating edges.
                 instrumentation.runOnMainSync { body = Rect.Zero; bounds = Rect.Zero }
-                activity.onActivity { it.setContent { key(shadow) {
+                activity.onActivity { it.setContent { key(custom) {
                     state = rememberSheetState("expanded"); scope = rememberCoroutineScope()
                     Box(Modifier.fillMaxSize().background(Color.Green)) {
                         BetterSheetHost(state, listOf(SheetSnapPoint.fraction("medium", .5f), SheetSnapPoint.expanded()),
                             bodyMode = SheetBodyMode.Fill, behavior = SheetBehavior(scrimEnabled = false), presentation = tray,
                             surfaceModifier = Modifier.onGloballyPositioned { bounds = it.boundsInWindow() },
-                            surface = SheetSurface(shadow) { Modifier.background(Color.Red) },
+                            containerColor = Color.Red,
+                            surface = if (custom) ({ _, _ -> Modifier.background(Color.Red) }) else null,
                             footer = { Box(Modifier.fillMaxWidth().height(64.dp).drawWithContent {
                                 drawContent(); drawRect(Color.Magenta, Offset(0f, size.height), Size(size.width, 200f))
                             }) }) { Spacer(Modifier.fillMaxSize().onGloballyPositioned { body = it.boundsInWindow() }) }
                     }
                 } } }
                 await("expanded")
-                val expanded = shot("tray-expanded-$shadow")
+                val expanded = shot("tray-expanded-$custom")
                 try { assertColor("Tray child effect entered navigation area", expanded.getPixel(expanded.width / 4, expanded.height - 8), android.graphics.Color.RED) }
                 finally { expanded.recycle() }
                 instrumentation.runOnMainSync { scope.launch { state.collapse() } }; await("medium")
-                val image = shot("tray-floating-$shadow")
+                val image = shot("tray-floating-$custom")
                 try {
                     val x = bounds.center.x.toInt(); val y = bounds.bottom.toInt() + 4
                     assertColor("Floating tray painted the app navigation bar", image.getPixel(image.width / 4, image.height - 8), android.graphics.Color.GREEN)
@@ -181,15 +183,17 @@ class SheetSurfaceRenderingTest {
                     return android.graphics.Color.green(image.getPixel(x, y))
                 } finally { image.recycle() }
             }
-            val withShadow = floating(SheetSurfaceShadow.Default)
-            val withoutShadow = floating(SheetSurfaceShadow.None)
-            assertTrue("Custom material silently lost its default shadow: $withShadow vs $withoutShadow", withShadow + 2 < withoutShadow)
+            val solid = floating(false)
+            val custom = floating(true)
+            assertTrue("Custom material lost its default shadow: $custom", custom < 250)
+            assertTrue("Custom and solid shadows differ: $solid vs $custom", kotlin.math.abs(solid - custom) <= 3)
         }
     }
 
     @Test fun modalForwardsTheSurfaceForBothEdges() {
         ActivityScenario.launch(MainActivity::class.java).use { activity ->
-            mount(activity, "modal-bottom", modal = true)
+            mount(activity, "modal-bottom", modal = true, stacked = true)
+            assertTrue("Stack modifier no longer scales custom material", body.left > 50f)
             mount(activity, "modal-top", modal = true, edge = SheetEdge.Top)
         }
     }

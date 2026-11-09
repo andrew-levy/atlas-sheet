@@ -87,7 +87,7 @@ public fun BetterModalSheet(
     enterTransition: EnterTransition = slideInVertically(defaultSheetSpring(IntOffset(1, 1))) { if (edge == SheetEdge.Top) -it else it },
     exitTransition: ExitTransition = slideOutVertically(defaultSheetSpring(IntOffset(1, 1))) { if (edge == SheetEdge.Top) -it else it },
     snapAnimationSpec: AnimationSpec<Float> = defaultSheetSpring(),
-    surface: SheetSurface? = null,
+    surface: (@Composable (shape: Shape, isNavigationBar: Boolean) -> Modifier)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     SideEffect { state.prepareModalPresentation() }
@@ -146,7 +146,9 @@ public fun BetterModalSheet(
 /**
  * Inline overlay. Put last in a full-size Box. Scrim color controls drawing only;
  * SheetBehavior controls outside touches. [surface] replaces solid paint without replacing
- * layout, gestures, content slots or the default shadow; see [SheetSurface].
+ * layout, gestures, content slots or the default shadow. Its callback receives the resolved
+ * shape and whether it paints the separate navigation-bar continuation. Return a drawing-only
+ * modifier that preserves content; see docs/SURFACES.md for the contract.
  * [surfaceModifier] remains an outer decorator, including for existing solid callers.
  */
 @Composable
@@ -172,7 +174,7 @@ public fun BetterSheetHost(
     enterTransition: EnterTransition = slideInVertically(defaultSheetSpring(IntOffset(1, 1))) { if (edge == SheetEdge.Top) -it else it },
     exitTransition: ExitTransition = slideOutVertically(defaultSheetSpring(IntOffset(1, 1))) { if (edge == SheetEdge.Top) -it else it },
     snapAnimationSpec: AnimationSpec<Float> = defaultSheetSpring(),
-    surface: SheetSurface? = null,
+    surface: (@Composable (shape: Shape, isNavigationBar: Boolean) -> Modifier)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     require(snapPoints.isNotEmpty() && snapPoints.map { it.id }.distinct().size == snapPoints.size)
@@ -356,7 +358,6 @@ public fun BetterSheetHost(
             topEnd = radius * (1f - morph) + tray.expandedCornerRadius * morph,
             bottomStart = radius * (1f - morph), bottomEnd = radius * (1f - morph),
         )
-        val materialScope = SheetSurfaceScope(surfaceShape, edge, presentation, SheetSurfaceRegion.Body)
         // Animate the surface and its system bar background together.
         // The body remains composed and measured while hidden, preserving content state.
         Box(Modifier.align(edgeAlignment).then(with(visibilityScope) {
@@ -372,9 +373,7 @@ public fun BetterSheetHost(
                     .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Horizontal))
                     .widthIn(max = maxWidth).fillMaxWidth()
                     .height(with(density) { barInset.toDp() })
-                    .then(surface?.modifier(SheetSurfaceScope(
-                        RectangleShape, edge, presentation, SheetSurfaceRegion.NavigationBar,
-                    )) ?: Modifier.background(containerColor)))
+                    .then(surface?.invoke(RectangleShape, true) ?: Modifier.background(containerColor)))
             }
             val sheetSurfaceModifier = Modifier
                 .align(edgeAlignment)
@@ -387,13 +386,13 @@ public fun BetterSheetHost(
                 .widthIn(max = maxWidth).fillMaxWidth()
                 .padding(horizontal = traySide)
                 .then(surfaceModifier)
-                .then(if (surface?.shadow == SheetSurfaceShadow.None) Modifier else Modifier.sheetSurfaceShadow(
+                .sheetSurfaceShadow(
                     if (opensFromTop) 0.dp else 16.dp,
                     surfaceShape,
                     floating = tray != null,
-                ))
+                )
                 .sheetDrawClip { surfaceShape }
-                .then(surface?.modifier(materialScope) ?: Modifier)
+                .then(surface?.invoke(surfaceShape, false) ?: Modifier)
                 .then(if (surface == null) Modifier.sheetNavigationCover(containerColor, navExtension) else Modifier)
 
             Layout(modifier = sheetSurfaceModifier, content = {
