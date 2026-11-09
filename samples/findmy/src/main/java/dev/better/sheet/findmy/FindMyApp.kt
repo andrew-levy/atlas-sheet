@@ -445,7 +445,7 @@ private fun NearbyPeopleSheet(onDismissed: () -> Unit, onSelect: (Friend) -> Uni
         contentColor = colors.ink,
         scrimColor = Color.Black.copy(alpha = 0.22f),
         shape = RoundedCornerShape(topStart = SheetCorner, topEnd = SheetCorner),
-        surfaceModifier = Modifier.testTag("nearby-surface"),
+        sheetTransform = Modifier.testTag("nearby-surface"),
         dragHandle = { Handle() },
         header = {
             Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
@@ -639,7 +639,7 @@ private fun PersonSheet(
         stackState = stack,
         onDismissed = onClosed,
         snapPoints = listOf(SheetSnapPoint.fitContent(), SheetSnapPoint.fraction("stack", StackBaseHeight), SheetSnapPoint.expanded()),
-        surfaceModifier = Modifier.recedeInStack().testTag("stack-profile-surface"),
+        sheetTransform = Modifier.recedeInStack().testTag("stack-profile-surface"),
         modifier = modifier,
         behavior = SheetBehavior(
             keyboardBehavior = SheetKeyboardBehavior.Ignore,
@@ -811,7 +811,7 @@ private fun ContactSheet(friend: Friend, stack: SheetStackState, onNotify: () ->
     BetterModalSheet(
         state = state,
         stackState = stack,
-        surfaceModifier = Modifier.recedeInStack().testTag("stack-contact-surface"),
+        sheetTransform = Modifier.recedeInStack().testTag("stack-contact-surface"),
         snapPoints = listOf(SheetSnapPoint.fraction("medium", StackBaseHeight * StackHeightRatio), SheetSnapPoint.expanded()),
         onDismissed = onDismissed,
         behavior = SheetBehavior(keyboardBehavior = SheetKeyboardBehavior.Resize),
@@ -869,7 +869,7 @@ private fun NotifySheet(friend: Friend, stack: SheetStackState, onDismissed: () 
     BetterModalSheet(
         state = state,
         stackState = stack,
-        surfaceModifier = Modifier.recedeInStack().testTag("stack-notify-surface"),
+        sheetTransform = Modifier.recedeInStack().testTag("stack-notify-surface"),
         snapPoints = listOf(SheetSnapPoint.fraction("notification", StackBaseHeight * StackHeightRatio * StackHeightRatio)),
         onDismissed = onDismissed,
         title = "Notify Me",

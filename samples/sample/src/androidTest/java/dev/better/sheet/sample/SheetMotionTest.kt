@@ -106,7 +106,7 @@ class SheetMotionTest {
                 exitTransition = slideOutVertically(tween(400)) { it },
                 maxWidth = 2000.dp,
                 presentation = SheetPresentation.Tray(matchDeviceCorners = false),
-                surfaceModifier = Modifier.testTag("tray-surface"),
+                sheetTransform = Modifier.testTag("tray-surface"),
                 header = { Spacer(Modifier.fillMaxWidth().height(48.dp).testTag("tray-header")) },
                 footer = { Spacer(Modifier.fillMaxWidth().height(48.dp).testTag("tray-footer")) },
                 bodyMode = SheetBodyMode.Fill) {
@@ -248,7 +248,7 @@ class SheetMotionTest {
             detail = rememberSheetState(initiallyVisible = false)
             review = rememberSheetState(initiallyVisible = false)
             BetterModalSheet(first, listOf(SheetSnapPoint.expanded()), stackState = stackState,
-                surfaceModifier = Modifier.sheetStackEffect {
+                sheetTransform = Modifier.sheetStackEffect {
                     baseDepth = it.animatedDepth
                     scaleX = 1f - .06f * baseDepth
                 }) {
@@ -256,7 +256,7 @@ class SheetMotionTest {
                 Spacer(Modifier.height(120.dp).testTag("stack-first"))
             }
             BetterModalSheet(detail, listOf(SheetSnapPoint.fraction("expanded", .6f)), stackState = stackState,
-                surfaceModifier = Modifier.sheetStackEffect { middleDepth = it.animatedDepth }) {
+                sheetTransform = Modifier.sheetStackEffect { middleDepth = it.animatedDepth }) {
                 middle = requireNotNull(LocalSheetStackEntry.current)
                 Spacer(Modifier.height(120.dp).testTag("stack-second"))
             }

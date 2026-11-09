@@ -42,12 +42,12 @@ public fun BetterSheet(
     dragHandle: @Composable (() -> Unit)? = { SheetDragHandle() },
     header: @Composable (() -> Unit)? = null,
     footer: @Composable (() -> Unit)? = null,
-    surfaceModifier: Modifier = Modifier,
+    sheetTransform: Modifier = Modifier,
     presentation: SheetPresentation = SheetPresentation.Standard,
     enterTransition: EnterTransition = slideInVertically(defaultSheetSpring(IntOffset(1, 1))) { it },
     exitTransition: ExitTransition = slideOutVertically(defaultSheetSpring(IntOffset(1, 1))) { it },
     snapAnimationSpec: AnimationSpec<Float> = defaultSheetSpring(),
-    surface: (@Composable (shape: Shape, isNavigationBar: Boolean) -> Modifier)? = null,
+    sheetMaterial: (@Composable (outline: Shape) -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     SideEffect { state.preparePresentation() }
@@ -65,7 +65,7 @@ public fun BetterSheet(
     }
     BetterSheetHost(
         state, snapPoints, modifier, behavior, bodyMode, title, maxWidth, topMargin,
-        containerColor, contentColor, scrimColor, shape, dragHandle, header, footer, surfaceModifier, presentation, SheetEdge.Bottom, enterTransition, exitTransition, snapAnimationSpec, surface, content,
+        containerColor, contentColor, scrimColor, shape, dragHandle, header, footer, sheetTransform, presentation, SheetEdge.Bottom, enterTransition, exitTransition, snapAnimationSpec, sheetMaterial, content,
     )
 }
 

@@ -299,7 +299,7 @@ private fun StackedSheets(close: () -> Unit) {
     BetterModalSheet(
         state = plans, stackState = stackState,
         snapPoints = listOf(SheetSnapPoint.fraction("expanded", 0.92f)),
-        surfaceModifier = effect, title = "Plans", onDismissed = close,
+        sheetTransform = effect, title = "Plans", onDismissed = close,
         header = { StackHeader("Plans", "This week", "stack-close-base", Modifier.testTag("stack-base-title"), closePlans) },
         footer = { StackFooter { Text("3 plans", color = Muted, modifier = Modifier.testTag("footer")) } },
     ) {
@@ -314,7 +314,7 @@ private fun StackedSheets(close: () -> Unit) {
     BetterModalSheet(
         state = details, stackState = stackState,
         snapPoints = listOf(SheetSnapPoint.fraction("expanded", 0.58f)),
-        surfaceModifier = effect, title = "Better mobile",
+        sheetTransform = effect, title = "Better mobile",
         header = { StackHeader("Better mobile", "In progress", "stack-close-details", Modifier.testTag("stack-details-title"), closeDetails) },
         footer = { StackFooter {
             Button(onClick = { scope.launch { review.show() } }, modifier = Modifier.fillMaxWidth().testTag("stack-open-confirm")) { Text("Request review") }
@@ -329,7 +329,7 @@ private fun StackedSheets(close: () -> Unit) {
     }
     BetterModalSheet(
         state = review, stackState = stackState,
-        snapPoints = listOf(SheetSnapPoint.fitContent()), surfaceModifier = effect, title = "Request review",
+        snapPoints = listOf(SheetSnapPoint.fitContent()), sheetTransform = effect, title = "Request review",
         header = { StackHeader("Request review", "Two reviewers", "stack-close-confirm", Modifier.testTag("stack-confirm-title"), closeReview) },
         footer = { StackFooter {
             Button(onClick = closeReview, modifier = Modifier.fillMaxWidth().testTag("stack-send-review")) { Text("Send request") }

@@ -1,46 +1,53 @@
-# Custom sheet surfaces
+# Sheet material and transform
 
-`surfaceModifier` decorates the outer sheet: stack transforms, bounds observation and similar effects belong there. It cannot replace the inner solid fill or see the resolved tray shape. The optional `surface` callback fills that gap without adding a material class or renderer dependency. It is available on `BetterSheet`, `BetterSheetHost` and `BetterModalSheet`.
+Better Sheet owns sheet behavior and geometry. Apps supply header/body/footer content and can choose a decorative material behind it:
 
 ```kotlin
 BetterSheetHost(
     state = state,
     snapPoints = listOf(SheetSnapPoint.fraction("half", .5f), SheetSnapPoint.expanded()),
-    surfaceModifier = Modifier.sheetStackEffect { entry ->
+    sheetTransform = Modifier.sheetStackEffect { entry ->
         scaleX = 1f - .04f * entry.animatedDepth
     },
-    surface = { shape, isNavigationBar ->
-        if (isNavigationBar) {
-            // Continue the body's gradient endpoint in the separate bottom cap.
-            Modifier.background(Color(0xFF91C6B8))
-        } else {
-            Modifier.background(
-                Brush.verticalGradient(listOf(Color(0xFFF4F1E9), Color(0xFF91C6B8))),
-                shape,
-            )
-        }
-    },
-    contentColor = Color(0xFF183C3A),
+    sheetMaterial = { outline -> GlassMaterial(outline) },
     header = { MyHeader() },
     footer = { MyFooter() },
 ) { MyBody() }
 ```
 
-The callback type is `(@Composable (shape: Shape, isNavigationBar: Boolean) -> Modifier)?`. The host supplies its resolved shape, including continuous tray morphs or mirrored top-sheet corners. The flag distinguishes the separate rectangular navigation cap used by standard bottom sheets. An app already knows its chosen edge and presentation; those need no extra callback scope.
+`GlassMaterial` above is an app/renderer-provided composable. A renderer-free material is ordinary Compose UI:
 
-Return drawing modifiers that preserve `drawContent()` and do not change sizing, padding, placement, touch handling or semantics. Better Sheet still owns those, plus shape clipping, detents, dismissal, scrolling, keyboard policy and sticky content slots. For glass, use the supplied shape for the renderer's lens/highlights and arrange a valid backdrop source in the app.
+```kotlin
+sheetMaterial = { _ ->
+    Box(
+        Modifier.fillMaxSize().background(
+            Brush.verticalGradient(listOf(Color(0xFFF4F1E9), Color(0xFF91C6B8))),
+        ),
+    )
+}
+```
 
-| Host configuration | Material behavior |
-|---|---|
-| Standard bottom | Body receives its sheet shape and `false`. A separate rectangular cap receives `RectangleShape` and `true` when the IME does not cover navigation. |
-| Floating/expanded tray | One body receives the continuously morphing outline and `false`, including its navigation extension at expansion. Child pixels are clipped above the reserved navigation space to prevent footer effects leaking into it. |
-| Top | Body receives the existing mirrored default shape and `false`, including status-bar padding. No bottom navigation cap. |
-| Modal | Same callback in the Dialog's Compose root. It does not capture an Activity behind that Dialog. |
+All three entry points (`BetterSheet`, `BetterSheetHost`, `BetterModalSheet`) expose:
 
-Null retains the original solid fill and navigation cover. The existing host shadow is always retained, including for custom paint; top sheets keep zero elevation. Configure a material renderer to omit its own shadow to avoid doubling it. There is no separate shadow-policy API in this change. `surfaceModifier` continues to handle outer decoration and stack effects, independently of paint.
+```kotlin
+sheetTransform: Modifier = Modifier,
+sheetMaterial: (@Composable (outline: Shape) -> Unit)? = null,
+```
 
-Each invocation has local drawing coordinates. A gradient should explicitly continue its final color into the navigation cap, as above; an absolute-coordinate backdrop can sample the corresponding position. The callback may run more than once and should have no lifecycle side effects. Paint itself is clipped by the host.
+`outline` is the host's resolved Compose `Shape`, including continuous tray morphs or mirrored top-sheet corners. Use it for a renderer's lens/highlight calculation. No material classes, scopes, enums or navigation flags are required.
 
-Content colors, scrim, system-bar icons and input policies remain separate. Set `containerColor` appropriately for modal system-bar contrast decisions even when custom paint replaces its fill.
+The material is a **single composable layer**, measured by the host behind caller content. For standard bottom sheets it extends through the navigation area; expanded trays already include that area in their morphing surface. Gradients and backdrop textures therefore paint continuously without app-side navigation branches or duplicated material instances. Content, footer and detent positions do not change when selecting a material. The host clips child drawing above reserved navigation pixels so footer effects cannot spill into them.
 
-Named arguments and trailing content lambdas remain source compatible. Existing compiled clients must be rebuilt because public composable signatures change; release/version policy needs review before publication. Explicit positional final-content arguments need naming or adjustment.
+`sheetTransform` applies outer decoration/stack transforms to the whole sheet, including its material. It does not transform the full-window scrim. `Modifier.sheetStackEffect` still requires a stack entry; it remains a no-op without one. A material composable can internally use a drawing modifier, graphics layer or a renderer-specific `Box`; it does not need to return a modifier to Better Sheet.
+
+Null material keeps the existing solid background, shadow and navigation-cover rendering. A custom material keeps the host shadow, with the existing zero elevation for top sheets. Disable a renderer's own shadow to avoid doubling it. A custom standard bottom material's outline spans the navigation area as one surface; this can move custom bottom-corner decoration into that area. The default solid path is unchanged.
+
+Treat the material slot as decoration: do not put app controls, focus, gestures or content semantics there. Header/body/footer remain the interactive slots. Material children receive fixed painting constraints and cannot determine sheet height. The host owns placement and clipping. It owns drag/snap, scroll handoff, keyboard sizing, dismissal and content safe areas independently of material.
+
+Top materials include status-bar padding and do not create a bottom navigation extension. During IME display, the existing keyboard policy determines the available area; there is no extra material-only navigation extension underneath the IME. Modal materials live in the Dialog's Compose root: this API does not capture an Activity behind a separate window. Apps/renderers must arrange a valid backdrop source. Content colors, scrim and system-bar icons remain separate; `containerColor` still informs modal icon contrast even when a material replaces its fill.
+
+## Migration
+
+Rename the former `surfaceModifier` argument to `sheetTransform`. Replace the draft PR's modifier-returning `surface` callback with a `sheetMaterial` composable, wrapping a renderer's drawing modifier in a `Box` if needed. No navigation branching is required.
+
+The transform argument rename is source breaking for named callers; public composable signatures also change, so compiled clients must be rebuilt. Release/version policy needs review before publishing. Positional final-content arguments may need naming or adjustment.

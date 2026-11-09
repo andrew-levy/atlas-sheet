@@ -45,7 +45,7 @@ class TrayRenderingTest {
                     listOf(SheetSnapPoint.fraction("medium", .5f), SheetSnapPoint.expanded()),
                     presentation = presentation,
                     containerColor = Color.Cyan,
-                    surfaceModifier = Modifier.onGloballyPositioned {
+                    sheetTransform = Modifier.onGloballyPositioned {
                         val bounds = it.boundsInWindow()
                         surfaceBottom = bounds.bottom
                         surfaceLeft = bounds.left
@@ -150,7 +150,7 @@ class TrayRenderingTest {
                     behavior = SheetBehavior(scrimEnabled = false),
                     bodyMode = SheetBodyMode.Fill,
                     containerColor = Color.Cyan,
-                    surfaceModifier = Modifier.onGloballyPositioned {
+                    sheetTransform = Modifier.onGloballyPositioned {
                         val bounds = it.boundsInWindow()
                         surfaceBottom = bounds.bottom
                         surfaceCenter = bounds.center.x

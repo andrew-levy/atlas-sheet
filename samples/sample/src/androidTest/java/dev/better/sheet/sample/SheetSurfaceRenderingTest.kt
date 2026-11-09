@@ -5,6 +5,12 @@ import android.os.SystemClock
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -14,6 +20,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
@@ -35,23 +42,26 @@ class SheetSurfaceRenderingTest {
     private var body = Rect.Zero
     private var header = Rect.Zero
     private var footer = Rect.Zero
-    private var navigationPaints = mutableSetOf<Boolean>()
+    private var materialInstances = 0
+    private var materialBounds = Rect.Zero
 
     private fun mount(
         activity: ActivityScenario<MainActivity>, name: String,
         edge: SheetEdge = SheetEdge.Bottom,
         presentation: SheetPresentation = SheetPresentation.Standard,
         modal: Boolean = false, root: Boolean = false,
-        custom: Boolean = true, stacked: Boolean = false,
+        custom: Boolean = true, stacked: Boolean = false, gradient: Boolean = false,
     ) {
-        instrumentation.runOnMainSync { bounds = Rect.Zero; body = Rect.Zero; header = Rect.Zero; footer = Rect.Zero; navigationPaints.clear() }
+        instrumentation.runOnMainSync { bounds = Rect.Zero; body = Rect.Zero; header = Rect.Zero; footer = Rect.Zero; materialInstances = 0; materialBounds = Rect.Zero }
         activity.onActivity { it.setContent { key(name) {
             state = rememberSheetState("medium")
             scope = rememberCoroutineScope()
-            val material: @Composable (Shape, Boolean) -> Modifier = { shape, isNavigationBar ->
-                check((shape == RectangleShape) == isNavigationBar)
-                SideEffect { navigationPaints.add(isNavigationBar) }
-                Modifier.background(Color.Red)
+            val material: @Composable (Shape) -> Unit = { outline ->
+                check(outline != RectangleShape)
+                remember { materialInstances++; true }
+                val paint = if (gradient) Brush.verticalGradient(listOf(Color.Black, Color.White))
+                    else Brush.verticalGradient(listOf(Color.Red, Color.Red))
+                Box(Modifier.fillMaxSize().background(paint).onGloballyPositioned { materialBounds = it.boundsInWindow() })
             }
             val stack = rememberSheetStackState()
             Box(Modifier.fillMaxSize().background(Color.Green)) {
@@ -75,20 +85,21 @@ class SheetSurfaceRenderingTest {
                 val points = listOf(SheetSnapPoint.fraction("medium", .5f), SheetSnapPoint.expanded())
                 if (modal) BetterModalSheet(state, points, stackState = stack,
                     containerColor = Color.Cyan, behavior = SheetBehavior(scrimEnabled = false), bodyMode = SheetBodyMode.Fill, edge = edge,
-                    presentation = presentation, header = h, footer = f, surfaceModifier = onSurface,
-                    surface = if (custom) material else null, content = content)
+                    presentation = presentation, header = h, footer = f, sheetTransform = onSurface,
+                    sheetMaterial = if (custom) material else null, content = content)
                 else if (root) BetterSheet(state, points,
                     containerColor = Color.Cyan, behavior = SheetBehavior(scrimEnabled = false), bodyMode = SheetBodyMode.Fill,
-                    presentation = presentation, header = h, footer = f, surfaceModifier = onSurface,
-                    surface = if (custom) material else null, content = content)
+                    presentation = presentation, header = h, footer = f, sheetTransform = onSurface,
+                    sheetMaterial = if (custom) material else null, content = content)
                 else BetterSheetHost(state, points,
                     containerColor = Color.Cyan, behavior = SheetBehavior(scrimEnabled = false), bodyMode = SheetBodyMode.Fill, edge = edge,
-                    presentation = presentation, header = h, footer = f, surfaceModifier = onSurface,
-                    surface = if (custom) material else null, content = content)
+                    presentation = presentation, header = h, footer = f, sheetTransform = onSurface,
+                    sheetMaterial = if (custom) material else null, content = content)
             }
         } } }
         await("medium")
-        assertPaint(name, custom, edge)
+        if (!gradient) assertPaint(name, custom, edge)
+        if (custom) instrumentation.runOnMainSync { assertEquals("Material must be composed once", 1, materialInstances) }
     }
 
     private fun await(target: String) {
@@ -139,11 +150,9 @@ class SheetSurfaceRenderingTest {
         ActivityScenario.launch(MainActivity::class.java).use { activity ->
             for (custom in listOf(false, true)) {
                 mount(activity, "host-bottom-$custom", custom = custom)
-                if (custom) instrumentation.runOnMainSync { assertEquals(setOf(false, true), navigationPaints) }
                 instrumentation.runOnMainSync { scope.launch { state.expand() } }
                 await("expanded"); assertPaint("host-bottom-expanded-$custom", custom, SheetEdge.Bottom)
                 mount(activity, "host-top-$custom", edge = SheetEdge.Top, custom = custom)
-                if (custom) instrumentation.runOnMainSync { assertEquals(setOf(false), navigationPaints) }
             }
             mount(activity, "root-custom", root = true)
         }
@@ -162,9 +171,9 @@ class SheetSurfaceRenderingTest {
                     Box(Modifier.fillMaxSize().background(Color.Green)) {
                         BetterSheetHost(state, listOf(SheetSnapPoint.fraction("medium", .5f), SheetSnapPoint.expanded()),
                             bodyMode = SheetBodyMode.Fill, behavior = SheetBehavior(scrimEnabled = false), presentation = tray,
-                            surfaceModifier = Modifier.onGloballyPositioned { bounds = it.boundsInWindow() },
+                            sheetTransform = Modifier.onGloballyPositioned { bounds = it.boundsInWindow() },
                             containerColor = Color.Red,
-                            surface = if (custom) ({ _, _ -> Modifier.background(Color.Red) }) else null,
+                            sheetMaterial = if (custom) ({ _ -> Box(Modifier.fillMaxSize().background(Color.Red)) }) else null,
                             footer = { Box(Modifier.fillMaxWidth().height(64.dp).drawWithContent {
                                 drawContent(); drawRect(Color.Magenta, Offset(0f, size.height), Size(size.width, 200f))
                             }) }) { Spacer(Modifier.fillMaxSize().onGloballyPositioned { body = it.boundsInWindow() }) }
@@ -187,6 +196,94 @@ class SheetSurfaceRenderingTest {
             val custom = floating(true)
             assertTrue("Custom material lost its default shadow: $custom", custom < 250)
             assertTrue("Custom and solid shadows differ: $solid vs $custom", kotlin.math.abs(solid - custom) <= 3)
+        }
+    }
+
+    @Test fun oneMaterialContinuesBehindNavigationWithoutMovingCallerContent() {
+        ActivityScenario.launch(MainActivity::class.java).use { activity ->
+            mount(activity, "gradient-baseline", custom = false)
+            val originalHeader = header; val originalBody = body; val originalFooter = footer
+            mount(activity, "gradient-continuous", gradient = true)
+            assertEquals(originalHeader, header)
+            assertEquals(originalBody, body)
+            assertEquals(originalFooter, footer)
+            val image = shot("gradient-continuous")
+            try {
+                assertEquals("Material should reach the window bottom", image.height.toFloat(), materialBounds.bottom, 1f)
+                val nearNavTop = android.graphics.Color.green(image.getPixel(image.width / 4, footer.bottom.toInt() + 4))
+                val nearNavBottom = android.graphics.Color.green(image.getPixel(image.width / 4, image.height - 8))
+                assertTrue("Material restarted at navigation boundary: $nearNavTop", nearNavTop > 220)
+                assertTrue("Gradient did not continue to its endpoint: $nearNavBottom", nearNavBottom > 245)
+                assertTrue("Navigation gradient has a seam", kotlin.math.abs(nearNavTop - nearNavBottom) < 25)
+            } finally { image.recycle() }
+        }
+    }
+
+    @Test fun materialKeepsKeyboardResizeRestorationAndHeaderDrag() {
+        var imeBottom = 0
+        lateinit var showKeyboard: () -> Unit
+        lateinit var hideKeyboard: () -> Unit
+        ActivityScenario.launch(MainActivity::class.java).use { activity ->
+            activity.onActivity { it.setContent {
+                state = rememberSheetState("medium"); scope = rememberCoroutineScope()
+                val requester = remember { FocusRequester() }
+                val keyboard = LocalSoftwareKeyboardController.current
+                val focus = LocalFocusManager.current
+                val ime = WindowInsets.ime.getBottom(LocalDensity.current)
+                SideEffect {
+                    imeBottom = ime
+                    showKeyboard = { requester.requestFocus(); keyboard?.show() }
+                    hideKeyboard = { focus.clearFocus(); keyboard?.hide() }
+                }
+                Box(Modifier.fillMaxSize().background(Color.Green)) {
+                    BetterSheetHost(state, listOf(SheetSnapPoint.fraction("medium", .5f), SheetSnapPoint.expanded()),
+                        bodyMode = SheetBodyMode.Fill,
+                        behavior = SheetBehavior(scrimEnabled = false, keyboardBehavior = SheetKeyboardBehavior.Expand),
+                        sheetMaterial = { _ ->
+                            remember { materialInstances++; true }
+                            Box(Modifier.fillMaxSize().background(Color.Red).onGloballyPositioned { materialBounds = it.boundsInWindow() })
+                        },
+                        sheetTransform = Modifier.onGloballyPositioned { bounds = it.boundsInWindow() },
+                        header = { Box(Modifier.fillMaxWidth().height(48.dp).onGloballyPositioned { header = it.boundsInWindow() }) },
+                        footer = { Box(Modifier.fillMaxWidth().height(64.dp).onGloballyPositioned { footer = it.boundsInWindow() }) },
+                    ) {
+                        Box(Modifier.fillMaxSize().onGloballyPositioned { body = it.boundsInWindow() }) {
+                            BasicTextField("Note", {}, Modifier.focusRequester(requester))
+                        }
+                    }
+                }
+            } }
+            fun until(message: String, ready: () -> Boolean) {
+                val deadline = SystemClock.uptimeMillis() + 15000
+                while (true) {
+                    var done = false
+                    instrumentation.runOnMainSync { done = ready() }
+                    if (done) break
+                    check(SystemClock.uptimeMillis() < deadline) { message }
+                    SystemClock.sleep(30)
+                }
+                SystemClock.sleep(150)
+            }
+            await("medium")
+            val originalFooter = footer
+            instrumentation.runOnMainSync { showKeyboard() }
+            until("Material did not resize with keyboard") { imeBottom > 100 && state.currentSnapPoint == "expanded" && !state.isAnimationRunning }
+            val keyboardShot = shot("material-keyboard")
+            try {
+                assertEquals("Material extends under IME", (keyboardShot.height - imeBottom).toFloat(), materialBounds.bottom, 2f)
+                assertTrue("Footer covered by IME", footer.bottom <= materialBounds.bottom + 1f)
+            } finally { keyboardShot.recycle() }
+            instrumentation.runOnMainSync { hideKeyboard() }
+            until("Keyboard did not restore the detent") { imeBottom < 100 && state.currentSnapPoint == "medium" && !state.isAnimationRunning }
+            assertEquals(originalFooter, footer)
+            val x = header.center.x.toInt(); val start = header.center.y.toInt()
+            // Use Android's input dispatcher with a full-height swipe, avoiding a density-
+            // dependent release between detents on small emulator windows.
+            instrumentation.uiAutomation.executeShellCommand("input swipe $x $start $x 80 650").use { descriptor ->
+                java.io.FileInputStream(descriptor.fileDescriptor).use { it.readBytes() }
+            }
+            await("expanded")
+            assertEquals("Material remounted across keyboard/drag", 1, materialInstances)
         }
     }
 
