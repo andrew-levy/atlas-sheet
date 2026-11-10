@@ -210,7 +210,7 @@ These parameters are shared by `BetterModalSheet` and `BetterSheet`, except `sta
 | `shape` | Rounded top corners, `28.dp` | Customize the base surface shape |
 | `modifier` | `Modifier` | Customize the full host container |
 | `sheetTransform` | `Modifier` | Transform/decorate the whole sheet, including stack effects |
-| `sheetMaterial` | `(@Composable (Shape) -> Unit)?` | Decorative material slot behind content; null keeps solid defaults |
+| `sheetSurface` | `(@Composable (Shape) -> Modifier)?` | Drawing modifier behind content; null keeps solid defaults |
 | `title` | `"Bottom sheet"` | Set the accessibility pane title; this does not render a visible header |
 | `presentation` | `SheetPresentation.Standard` | Use `SheetPresentation.Tray()` for an inset surface |
 | `enterTransition` / `exitTransition` | Vertical spring slide | Use standard Compose transitions |

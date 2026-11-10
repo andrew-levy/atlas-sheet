@@ -86,7 +86,7 @@ public fun BetterModalSheet(
     enterTransition: EnterTransition = slideInVertically(defaultSheetSpring(IntOffset(1, 1))) { if (edge == SheetEdge.Top) -it else it },
     exitTransition: ExitTransition = slideOutVertically(defaultSheetSpring(IntOffset(1, 1))) { if (edge == SheetEdge.Top) -it else it },
     snapAnimationSpec: AnimationSpec<Float> = defaultSheetSpring(),
-    sheetMaterial: (@Composable (outline: Shape) -> Unit)? = null,
+    sheetSurface: (@Composable (outline: Shape) -> Modifier)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     SideEffect { state.prepareModalPresentation() }
@@ -136,7 +136,7 @@ public fun BetterModalSheet(
         CompositionLocalProvider(LocalSheetStackEntry provides entry) {
             BetterSheetHost(
                 state, snapPoints, modifier, behavior, bodyMode, title, maxWidth, topMargin,
-                containerColor, contentColor, scrimColor, shape, dragHandle, header, footer, sheetTransform, presentation, edge, enterTransition, exitTransition, snapAnimationSpec, sheetMaterial, content,
+                containerColor, contentColor, scrimColor, shape, dragHandle, header, footer, sheetTransform, presentation, edge, enterTransition, exitTransition, snapAnimationSpec, sheetSurface, content,
             )
         }
     }
@@ -144,8 +144,8 @@ public fun BetterModalSheet(
 
 /**
  * Inline overlay. Put last in a full-size Box. Scrim color controls drawing only;
- * SheetBehavior controls outside touches. [sheetMaterial] is a decorative composable layer
- * behind caller content, receiving the resolved sheet shape. The host owns its size, clipping,
+ * SheetBehavior controls outside touches. [sheetSurface] returns a drawing Modifier for
+ * the decorative layer behind caller content, receiving the resolved sheet shape. The host owns its size, clipping,
  * default shadow and navigation-area extension; see docs/SURFACES.md for the contract.
  * [sheetTransform] decorates/transforms the whole sheet without changing its full-window scrim.
  */
@@ -172,7 +172,7 @@ public fun BetterSheetHost(
     enterTransition: EnterTransition = slideInVertically(defaultSheetSpring(IntOffset(1, 1))) { if (edge == SheetEdge.Top) -it else it },
     exitTransition: ExitTransition = slideOutVertically(defaultSheetSpring(IntOffset(1, 1))) { if (edge == SheetEdge.Top) -it else it },
     snapAnimationSpec: AnimationSpec<Float> = defaultSheetSpring(),
-    sheetMaterial: (@Composable (outline: Shape) -> Unit)? = null,
+    sheetSurface: (@Composable (outline: Shape) -> Modifier)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     require(snapPoints.isNotEmpty() && snapPoints.map { it.id }.distinct().size == snapPoints.size)
@@ -358,7 +358,7 @@ public fun BetterSheetHost(
         )
         // Custom materials are composed once, including the standard bottom navigation area.
         // Compensate this extra paint height in outer padding so content/detents do not move.
-        val materialNavigation = if (sheetMaterial != null && !opensFromTop && tray == null &&
+        val materialNavigation = if (sheetSurface != null && !opensFromTop && tray == null &&
             (isVisible || state.presentationExiting) && !keyboardCoversNav) navInset else 0
         // Animate the surface and its system bar background together.
         // The body remains composed and measured while hidden, preserving content state.
@@ -366,7 +366,7 @@ public fun BetterSheetHost(
             Modifier.animateEnterExit(enterTransition, exitTransition, "Sheet presentation")
         }).sheetPresentationPlacement(state)) {
             val barInset = if (opensFromTop) topInset else navInset
-            if (sheetMaterial == null && !opensFromTop && tray == null && (isVisible || state.presentationExiting) && barInset > 0 &&
+            if (sheetSurface == null && !opensFromTop && tray == null && (isVisible || state.presentationExiting) && barInset > 0 &&
                 !keyboardCoversNav
             ) {
                 // Continue the surface color behind the system bar at the opening edge.
@@ -394,16 +394,15 @@ public fun BetterSheetHost(
                     floating = tray != null,
                 )
                 .sheetDrawClip { surfaceShape }
-                .then(if (sheetMaterial == null) Modifier.sheetNavigationCover(containerColor, navExtension) else Modifier)
+                .then(if (sheetSurface == null) Modifier.sheetNavigationCover(containerColor, navExtension) else Modifier)
 
             Layout(modifier = sheetSurfaceModifier, content = {
-                if (sheetMaterial != null) {
-                    // A slot may emit any number of nodes; this layer keeps it to one measurable
-                    // and gives its children the host's fixed painting bounds.
-                    Box(Modifier.fillMaxSize(), propagateMinConstraints = true) { sheetMaterial(surfaceShape) }
+                if (sheetSurface != null) {
+                    // Host-owned fixed-size layer; caller only supplies drawing.
+                    Box(Modifier.fillMaxSize().then(sheetSurface(surfaceShape)))
                 }
                 Layout(modifier = Modifier.fillMaxWidth()
-                    .then(if (sheetMaterial == null) Modifier.background(containerColor)
+                    .then(if (sheetSurface == null) Modifier.background(containerColor)
                         else Modifier.sheetContentAboveNavigation(navExtension))
                     // The status bar is inside the same clipped sheet surface, not a separate cap.
                     .padding(
@@ -480,7 +479,7 @@ public fun BetterSheetHost(
                 val childHeight = (base + stretch + adjustment + topExtension).roundToInt().coerceAtLeast(0)
                 val visible = (visibleHeight + stretch + adjustment + topExtension).roundToInt().coerceAtLeast(0)
                 val child = measurables.last().measure(Constraints.fixed(constraints.maxWidth, childHeight))
-                val material = if (sheetMaterial != null) measurables.first().measure(
+                val material = if (sheetSurface != null) measurables.first().measure(
                     Constraints.fixed(constraints.maxWidth, childHeight + materialNavigation),
                 ) else null
                 layout(constraints.maxWidth, visible + materialNavigation) {

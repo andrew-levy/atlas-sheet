@@ -22,9 +22,9 @@ import kotlinx.coroutines.launch
 
 internal enum class MaterialExample(val title: String, val detail: String, val code: String) {
     Default("Solid default", "The existing solid sheet. Nothing extra supplied.", "No material or transform"),
-    Material("Material only", "A gradient behind the same header, body and footer.", "sheetMaterial = { outline -> … }"),
+    Material("Material only", "A gradient behind the same header, body and footer.", "sheetSurface = { outline -> … }"),
     Transform("Transform only", "Default paint. Cover the sheet to see it recede.", "sheetTransform = stackEffect"),
-    Both("Material + transform", "The gradient and stack recession work together.", "sheetMaterial + sheetTransform"),
+    Both("Material + transform", "The gradient and stack recession work together.", "sheetSurface + sheetTransform"),
 }
 
 @Composable
@@ -67,14 +67,12 @@ internal fun MaterialExamples(close: () -> Unit) {
     }
 }
 
-/** App-provided composable paint. The host clips it and carries it through navigation space. */
-@Composable
-private fun GradientSheetMaterial(outline: Shape) {
-    Box(Modifier.fillMaxSize().background(
+/** App-provided drawing modifier. The host clips it and paints through navigation space. */
+private fun gradientSheetSurface(outline: Shape): Modifier =
+    Modifier.background(
         Brush.verticalGradient(listOf(Color(0xFFFFE9CA), Color(0xFFE4D9FF), Color(0xFFBFE6DF))),
         outline,
-    ))
-}
+    )
 
 @Composable
 private fun MaterialExampleSheet(example: MaterialExample, presentation: SheetPresentation, close: () -> Unit) {
@@ -141,7 +139,7 @@ private fun MaterialExampleSheet(example: MaterialExample, presentation: SheetPr
             header = header, footer = footer, content = content)
         MaterialExample.Material -> BetterModalSheet(state, points, onDismissed = close,
             title = example.title, behavior = behavior, presentation = presentation,
-            sheetMaterial = { outline -> GradientSheetMaterial(outline) },
+            sheetSurface = { outline -> gradientSheetSurface(outline) },
             header = header, footer = footer, content = content)
         MaterialExample.Transform -> BetterModalSheet(state, points, onDismissed = close,
             title = example.title, behavior = behavior, presentation = presentation,
@@ -150,12 +148,12 @@ private fun MaterialExampleSheet(example: MaterialExample, presentation: SheetPr
         MaterialExample.Both -> BetterModalSheet(state, points, onDismissed = close,
             title = example.title, behavior = behavior, presentation = presentation,
             stackState = stack, sheetTransform = stackEffect,
-            sheetMaterial = { outline -> GradientSheetMaterial(outline) },
+            sheetSurface = { outline -> gradientSheetSurface(outline) },
             header = header, footer = footer, content = content)
     }
     if (transforms) BetterModalSheet(cover, listOf(SheetSnapPoint.fixed("detail", 240.dp)),
         stackState = stack, sheetTransform = stackEffect,
-        sheetMaterial = if (example == MaterialExample.Both) ({ outline -> GradientSheetMaterial(outline) }) else null,
+        sheetSurface = if (example == MaterialExample.Both) ({ outline -> gradientSheetSurface(outline) }) else null,
         title = "Stack preview", header = {
             Column(Modifier.padding(horizontal = 24.dp)) {
                 Text("Stack preview", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.testTag("material-cover-title"))

@@ -156,7 +156,7 @@ Use `header` / `footer` for sticky content, and `maxWidth` / `topMargin` to tune
 | Use a floating tray | `presentation = SheetPresentation.Tray()` |
 | Coordinate modal layers | Share `stackState = rememberSheetStackState()` between modals |
 | Customize how layers recede | `sheetTransform = Modifier.sheetStackEffect { … }` |
-| Paint a custom material behind content | `sheetMaterial = { outline -> MyMaterial(outline) }` ([guide](docs/SURFACES.md)) |
+| Paint a custom material behind content | `sheetSurface = { outline -> Modifier.background(brush, outline) }` ([guide](docs/SURFACES.md)) |
 | Keep an inline background interactive | `behavior = SheetBehavior(scrimEnabled = false)` |
 | Change dimming only | `scrimColor = Color.Black.copy(alpha = 0.3f)` |
 | Disable user dismissal | `SheetBehavior(dismissOnDrag = false, dismissOnScrim = false, dismissOnBack = false)` |

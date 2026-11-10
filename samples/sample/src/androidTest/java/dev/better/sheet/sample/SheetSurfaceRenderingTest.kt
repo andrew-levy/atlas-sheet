@@ -56,12 +56,12 @@ class SheetSurfaceRenderingTest {
         activity.onActivity { it.setContent { key(name) {
             state = rememberSheetState("medium")
             scope = rememberCoroutineScope()
-            val material: @Composable (Shape) -> Unit = { outline ->
+            val surface: @Composable (Shape) -> Modifier = { outline ->
                 check(outline != RectangleShape)
                 remember { materialInstances++; true }
                 val paint = if (gradient) Brush.verticalGradient(listOf(Color.Black, Color.White))
                     else Brush.verticalGradient(listOf(Color.Red, Color.Red))
-                Box(Modifier.fillMaxSize().background(paint).onGloballyPositioned { materialBounds = it.boundsInWindow() })
+                Modifier.background(paint).onGloballyPositioned { materialBounds = it.boundsInWindow() }
             }
             val stack = rememberSheetStackState()
             Box(Modifier.fillMaxSize().background(Color.Green)) {
@@ -86,15 +86,15 @@ class SheetSurfaceRenderingTest {
                 if (modal) BetterModalSheet(state, points, stackState = stack,
                     containerColor = Color.Cyan, behavior = SheetBehavior(scrimEnabled = false), bodyMode = SheetBodyMode.Fill, edge = edge,
                     presentation = presentation, header = h, footer = f, sheetTransform = onSurface,
-                    sheetMaterial = if (custom) material else null, content = content)
+                    sheetSurface = if (custom) surface else null, content = content)
                 else if (root) BetterSheet(state, points,
                     containerColor = Color.Cyan, behavior = SheetBehavior(scrimEnabled = false), bodyMode = SheetBodyMode.Fill,
                     presentation = presentation, header = h, footer = f, sheetTransform = onSurface,
-                    sheetMaterial = if (custom) material else null, content = content)
+                    sheetSurface = if (custom) surface else null, content = content)
                 else BetterSheetHost(state, points,
                     containerColor = Color.Cyan, behavior = SheetBehavior(scrimEnabled = false), bodyMode = SheetBodyMode.Fill, edge = edge,
                     presentation = presentation, header = h, footer = f, sheetTransform = onSurface,
-                    sheetMaterial = if (custom) material else null, content = content)
+                    sheetSurface = if (custom) surface else null, content = content)
             }
         } } }
         await("medium")
@@ -173,7 +173,7 @@ class SheetSurfaceRenderingTest {
                             bodyMode = SheetBodyMode.Fill, behavior = SheetBehavior(scrimEnabled = false), presentation = tray,
                             sheetTransform = Modifier.onGloballyPositioned { bounds = it.boundsInWindow() },
                             containerColor = Color.Red,
-                            sheetMaterial = if (custom) ({ _ -> Box(Modifier.fillMaxSize().background(Color.Red)) }) else null,
+                            sheetSurface = if (custom) ({ _ -> Modifier.background(Color.Red) }) else null,
                             footer = { Box(Modifier.fillMaxWidth().height(64.dp).drawWithContent {
                                 drawContent(); drawRect(Color.Magenta, Offset(0f, size.height), Size(size.width, 200f))
                             }) }) { Spacer(Modifier.fillMaxSize().onGloballyPositioned { body = it.boundsInWindow() }) }
@@ -239,9 +239,9 @@ class SheetSurfaceRenderingTest {
                     BetterSheetHost(state, listOf(SheetSnapPoint.fraction("medium", .5f), SheetSnapPoint.expanded()),
                         bodyMode = SheetBodyMode.Fill,
                         behavior = SheetBehavior(scrimEnabled = false, keyboardBehavior = SheetKeyboardBehavior.Expand),
-                        sheetMaterial = { _ ->
+                        sheetSurface = { _ ->
                             remember { materialInstances++; true }
-                            Box(Modifier.fillMaxSize().background(Color.Red).onGloballyPositioned { materialBounds = it.boundsInWindow() })
+                            Modifier.background(Color.Red).onGloballyPositioned { materialBounds = it.boundsInWindow() }
                         },
                         sheetTransform = Modifier.onGloballyPositioned { bounds = it.boundsInWindow() },
                         header = { Box(Modifier.fillMaxWidth().height(48.dp).onGloballyPositioned { header = it.boundsInWindow() }) },
