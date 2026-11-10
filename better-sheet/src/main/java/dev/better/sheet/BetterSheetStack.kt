@@ -80,7 +80,7 @@ public class SheetStackEffectScope internal constructor() {
 
 /**
  * Transform the sheet surface without transforming its full-window scrim or input boundary.
- * Apply via surfaceModifier. Without a stack this modifier is a no-op. Does not change measurement.
+ * Apply via sheetTransform. Without a stack this modifier is a no-op. Does not change measurement.
  * Use ordinary padding before this modifier to change layout width instead of scaling text.
  */
 public fun Modifier.sheetStackEffect(

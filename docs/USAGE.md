@@ -5,7 +5,7 @@
 Focused examples and behavior details for less common configurations. Code uses the
 API on this branch; app-specific content functions are placeholders.
 
-[Background interaction](#background-interaction) · [Inline sheets](#inline-sheets) · [Fragments](#fragments) · [Stacking](#stacking) · [Parameters](#parameters) · [Dismissal](#dismissal) · [Scroll handoff](#scroll-handoff) · [Edge to edge](#edge-to-edge) · [Floating tray](#floating-tray) · [Animation behavior and migration](#animation-behavior-and-migration)
+[Custom surfaces](SURFACES.md) · [Background interaction](#background-interaction) · [Inline sheets](#inline-sheets) · [Fragments](#fragments) · [Stacking](#stacking) · [Parameters](#parameters) · [Dismissal](#dismissal) · [Scroll handoff](#scroll-handoff) · [Edge to edge](#edge-to-edge) · [Floating tray](#floating-tray) · [Animation behavior and migration](#animation-behavior-and-migration)
 
 ## Background interaction
 
@@ -148,14 +148,14 @@ val recede = Modifier.sheetStackEffect { entry ->
 BetterModalSheet(
     state = friends, stackState = stackState,
     snapPoints = listOf(SheetSnapPoint.expanded()),
-    surfaceModifier = recede,
+    sheetTransform = recede,
 ) {
     Button(onClick = { scope.launch { profile.show() } }) { Text("Open profile") }
 }
 BetterModalSheet(
     state = profile, stackState = stackState,
     snapPoints = listOf(SheetSnapPoint.fraction("expanded", 0.6f)),
-    surfaceModifier = recede,
+    sheetTransform = recede,
 ) {
     Button(onClick = { scope.launch { profile.hide() } }) { Text("Close") }
 }
@@ -181,7 +181,7 @@ BetterModalSheet(
   layout and shrinks text; padding changes width and can reflow content.
 - The effect supports scale, translations in `Dp`, alpha, transform origin and optional
   top-corner clipping. Clipping adds to the base shape; it cannot undo that base clip.
-  Effects apply only to `surfaceModifier`, leaving the full-screen scrim unchanged.
+  Effects apply only to `sheetTransform`, leaving the full-screen scrim unchanged.
 - Sheets without `stackState` remain independent; `sheetStackEffect` is a no-op there.
   Share each stack only among modals in one host window. Separate stack instances do
   not coordinate. Inline/Fragment sheets are not enrolled in this modal coordinator.
@@ -209,7 +209,8 @@ These parameters are shared by `BetterModalSheet` and `BetterSheet`, except `sta
 | `scrimColor` | Black at 42% alpha | Tune dimming; `Color.Unspecified` or `Color.Transparent` draws no dimming |
 | `shape` | Rounded top corners, `28.dp` | Customize the base surface shape |
 | `modifier` | `Modifier` | Customize the full host container |
-| `surfaceModifier` | `Modifier` | Customize the sheet surface, including stack effects |
+| `sheetTransform` | `Modifier` | Transform/decorate the whole sheet, including stack effects |
+| `sheetSurface` | `(@Composable (Shape) -> Modifier)?` | Drawing modifier behind content; null keeps solid defaults |
 | `title` | `"Bottom sheet"` | Set the accessibility pane title; this does not render a visible header |
 | `presentation` | `SheetPresentation.Standard` | Use `SheetPresentation.Tray()` for an inset surface |
 | `enterTransition` / `exitTransition` | Vertical spring slide | Use standard Compose transitions |

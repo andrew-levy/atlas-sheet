@@ -74,11 +74,11 @@ class EntranceRenderingTest {
                     if (modal) {
                         BetterModalSheet(state, points, enterTransition = enter, exitTransition = ExitTransition.None,
                             containerColor = Color(0xFF0033FF), scrimColor = Color.Transparent,
-                            surfaceModifier = surface, bodyMode = SheetBodyMode.Fill) { Spacer(Modifier.fillMaxSize()) }
+                            sheetTransform = surface, bodyMode = SheetBodyMode.Fill) { Spacer(Modifier.fillMaxSize()) }
                     } else {
                         BetterSheet(state, points, enterTransition = enter, exitTransition = ExitTransition.None,
                             containerColor = Color(0xFF0033FF), scrimColor = Color.Transparent,
-                            surfaceModifier = surface, bodyMode = SheetBodyMode.Fill) { Spacer(Modifier.fillMaxSize()) }
+                            sheetTransform = surface, bodyMode = SheetBodyMode.Fill) { Spacer(Modifier.fillMaxSize()) }
                     }
                 }
             } }
